@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  print_bluetooth_thermal
   share_plus
   url_launcher_windows
 )

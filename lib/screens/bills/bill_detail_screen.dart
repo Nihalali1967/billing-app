@@ -1,13 +1,12 @@
 import 'dart:ui';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:bluetooth_print/bluetooth_print.dart';
-import 'package:bluetooth_print/bluetooth_print_model.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
+import 'package:esc_pos_utils/esc_pos_utils.dart';
 import '../../models/bill.dart';
 import '../../providers/bill_provider.dart';
 
@@ -23,67 +22,19 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
   Bill? _bill;
   bool _isLoading = true;
   bool _isPrinting = false;
+  String _printStatus = '';
   final _currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
-  BluetoothPrint _bluetoothPrint = BluetoothPrint.instance;
-  List<BluetoothDevice> _devices = [];
-  BluetoothDevice? _selectedDevice;
-  bool _connected = false;
 
   @override
   void initState() {
     super.initState();
     _loadBill();
-    _initBluetooth();
   }
 
   @override
   void dispose() {
-    _bluetoothPrint.disconnect();
+    PrintBluetoothThermal.disconnect;
     super.dispose();
-  }
-
-  void _initBluetooth() {
-    _bluetoothPrint.state.listen((state) {
-      switch (state) {
-        case BluetoothPrint.CONNECTED:
-          setState(() {
-            _connected = true;
-            _isPrinting = false;
-          });
-          break;
-        case BluetoothPrint.DISCONNECTED:
-          setState(() {
-            _connected = false;
-            _isPrinting = false;
-          });
-          break;
-        default:
-          break;
-      }
-    });
-
-    // Check if Bluetooth is available (async check not needed here)
-    // Will handle availability when scanning
-  }
-
-  Future<void> _scanDevices() async {
-    await _bluetoothPrint.startScan(timeout: Duration(seconds: 4));
-    _bluetoothPrint.scanResults.listen((results) {
-      setState(() {
-        _devices = results;
-      });
-    });
-  }
-
-  Future<void> _connectDevice(BluetoothDevice device) async {
-    setState(() {
-      _isPrinting = true;
-    });
-    await _bluetoothPrint.connect(device);
-  }
-
-  Future<void> _disconnectDevice() async {
-    await _bluetoothPrint.disconnect();
   }
 
   Future<void> _loadBill() async {
@@ -315,284 +266,393 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
     if (_bill == null) return;
 
     try {
-      // Show printer selection dialog
+      // Check Bluetooth enabled
+      final bool isEnabled = await PrintBluetoothThermal.bluetoothEnabled;
+      if (!isEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.bluetooth_disabled, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Please enable Bluetooth to print'),
+              ],
+            ),
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
+      // Check Bluetooth permissions
+      final bool permGranted = await PrintBluetoothThermal.isPermissionBluetoothGranted;
+      if (!permGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.security, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(child: Text('Bluetooth permission required. Please grant in Settings.')),
+              ],
+            ),
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
+      // Show printer selection
       await _showPrinterSelectionDialog();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Print error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Print error: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
   Future<void> _showPrinterSelectionDialog() async {
-    await _scanDevices();
-    
+    // Use local state for dialog so it updates independently
+    List<BluetoothInfo> devices = [];
+    bool scanning = true;
+
+    // Initial scan
+    try {
+      devices = await PrintBluetoothThermal.pairedBluetooths;
+    } catch (_) {}
+    scanning = false;
+
+    if (!mounted) return;
+
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.print_rounded),
-              const SizedBox(width: 8),
-              const Text('Select Printer'),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: Column(
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+            contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            title: Row(
               children: [
-                if (_devices.isEmpty)
-                  const Center(child: Text('No printers found'))
-                else
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: _devices.length,
-                      itemBuilder: (context, index) {
-                        final device = _devices[index];
-                        return ListTile(
-                          leading: const Icon(Icons.bluetooth_rounded),
-                          title: Text(device.name ?? 'Unknown Device'),
-                          subtitle: Text(device.address ?? 'No Address'),
-                          onTap: () async {
-                            Navigator.pop(context);
-                            await _connectAndPrint(device);
-                          },
-                        );
-                      },
-                    ),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _scanDevices();
-                        },
-                        child: const Text('Rescan'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
-                      ),
-                    ),
-                  ],
+                  child: const Icon(Icons.print_rounded, color: Colors.blue, size: 20),
                 ),
+                const SizedBox(width: 12),
+                const Expanded(child: Text('Select Printer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                if (scanning)
+                  const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
               ],
             ),
-          ),
-        ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 320,
+              child: Column(
+                children: [
+                  if (devices.isEmpty && !scanning)
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.bluetooth_disabled_rounded, size: 48, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text('No paired printers found',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 15)),
+                            const SizedBox(height: 8),
+                            Text('Pair your thermal printer in\nBluetooth settings first',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                          ],
+                        ),
+                      ),
+                    )
+                  else if (devices.isEmpty && scanning)
+                    const Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Scanning for printers...', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        itemCount: devices.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final device = devices[index];
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            leading: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.bluetooth, color: Colors.blue, size: 20),
+                            ),
+                            title: Text(device.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: Text(device.macAdress, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+                            trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
+                            onTap: () {
+                              Navigator.pop(dialogCtx);
+                              _connectAndPrint(device);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: scanning ? null : () async {
+                            setDialogState(() => scanning = true);
+                            try {
+                              devices = await PrintBluetoothThermal.pairedBluetooths;
+                            } catch (_) {}
+                            setDialogState(() => scanning = false);
+                          },
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: const Text('Rescan'),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(dialogCtx),
+                          child: const Text('Cancel'),
+                          style: OutlinedButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
 
-  Future<void> _connectAndPrint(BluetoothDevice device) async {
+  Future<void> _connectAndPrint(BluetoothInfo device) async {
     setState(() {
       _isPrinting = true;
+      _printStatus = 'Connecting to ${device.name}...';
     });
 
     try {
-      await _connectDevice(device);
-      
-      // Generate receipt data
-      final receiptData = await _generateLineTextData();
-      
-      // Create Map for printReceipt
-      final receiptMap = {
-        'title': 'Bill Receipt',
-        'lines': receiptData,
-      };
-      
-      // Print the receipt
-      await _bluetoothPrint.printReceipt(receiptMap, receiptData);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bill printed successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Step 1: Connect
+      final bool connected = await PrintBluetoothThermal.connect(macPrinterAddress: device.macAdress);
+
+      if (!connected) {
+        if (mounted) {
+          setState(() => _isPrinting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Could not connect to ${device.name}')),
+              ]),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Step 2: Generate receipt
+      if (mounted) setState(() => _printStatus = 'Generating receipt...');
+      final List<int> bytes = await _generateEscPosReceipt();
+
+      // Step 3: Send to printer
+      if (mounted) setState(() => _printStatus = 'Printing bill...');
+      final bool result = await PrintBluetoothThermal.writeBytes(bytes);
+
+      // Step 4: Disconnect
+      await PrintBluetoothThermal.disconnect;
+
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(children: [
+              Icon(result ? Icons.check_circle : Icons.error_outline, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(result ? 'Bill printed successfully!' : 'Print may have failed. Please check printer.'),
+            ]),
+            backgroundColor: result ? Colors.green : Colors.orange,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Print failed: $e')),
-      );
-    } finally {
-      await _disconnectDevice();
-      setState(() {
-        _isPrinting = false;
-      });
+      try { await PrintBluetoothThermal.disconnect; } catch (_) {}
+      if (mounted) {
+        setState(() => _isPrinting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(children: [
+              const Icon(Icons.error_outline, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Print failed: ${e.toString().length > 80 ? '${e.toString().substring(0, 80)}...' : e}')),
+            ]),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
     }
   }
 
-  Future<List<LineText>> _generateLineTextData() async {
+  Future<List<int>> _generateEscPosReceipt() async {
     if (_bill == null) return [];
 
-    List<LineText> lines = [];
-    
-    // Add header
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'BILL RECEIPT',
-      weight: 1,
-      align: LineText.ALIGN_CENTER,
-      linefeed: 1,
-    ));
-    
+    final profile = await CapabilityProfile.load(name: 'default');
+    final generator = Generator(PaperSize.mm58, profile);
+
+    List<int> bytes = [];
+
+    // Header
+    bytes += generator.text(
+      'BILL RECEIPT',
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size2,
+        width: PosTextSize.size2,
+      ),
+    );
+    bytes += generator.emptyLines(1);
+
+    bytes += generator.hr();
+
     // Bill details
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Bill No: ${_bill!.billNumber}',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Date: ${_bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A'}',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Customer: ${_bill!.customerName ?? 'N/A'}',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
-    // Divider
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: '--------------------------------',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
+    bytes += generator.text(
+      'Bill No: ${_bill!.billNumber}',
+      styles: const PosStyles(bold: true),
+    );
+    bytes += generator.text(
+      'Date: ${_bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A'}',
+    );
+    bytes += generator.text(
+      'Customer: ${_bill!.customerName ?? 'Walk-in'}',
+    );
+
+    bytes += generator.hr();
+
     // Items header
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Item          Qty   Price   Total',
-      weight: 1,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
+    bytes += generator.row([
+      PosColumn(text: 'Item', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center)),
+      PosColumn(text: 'Price', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+
+    bytes += generator.hr(ch: '-');
+
     // Items
     for (final item in _bill!.items) {
-      final itemName = (item.productName ?? 'Product').padRight(12).substring(0, 12);
-      final quantity = item.quantity.toStringAsFixed(0).padLeft(3);
-      final price = _currency.format(item.effectivePrice).substring(1).padLeft(7);
-      final total = _currency.format(item.lineTotal).substring(1).padLeft(7);
-      
-      lines.add(LineText(
-        type: LineText.TYPE_TEXT,
-        content: '$itemName$quantity  $price  $total',
-        weight: 0,
-        align: LineText.ALIGN_LEFT,
-        linefeed: 1,
-      ));
+      final name = item.productName ?? 'Product';
+      final qty = item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2);
+      final total = _currency.format(item.lineTotal);
+
+      bytes += generator.row([
+        PosColumn(text: name, width: 6),
+        PosColumn(text: qty, width: 2, styles: const PosStyles(align: PosAlign.center)),
+        PosColumn(text: total, width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
     }
-    
-    // Divider
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: '--------------------------------',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
+
+    bytes += generator.hr();
+
     // Totals
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Subtotal:'.padRight(16) + _currency.format(_bill!.subtotal).substring(1).padLeft(8),
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
+    bytes += generator.row([
+      PosColumn(text: 'Subtotal', width: 6),
+      PosColumn(text: '', width: 2),
+      PosColumn(text: _currency.format(_bill!.subtotal), width: 4, styles: const PosStyles(align: PosAlign.right)),
+    ]);
+
     if (_bill!.discount > 0) {
-      lines.add(LineText(
-        type: LineText.TYPE_TEXT,
-        content: 'Discount:'.padRight(16) + '-${_currency.format(_bill!.discount).substring(1)}'.padLeft(8),
-        weight: 0,
-        align: LineText.ALIGN_LEFT,
-        linefeed: 1,
-      ));
+      bytes += generator.row([
+        PosColumn(text: 'Discount', width: 6),
+        PosColumn(text: '', width: 2),
+        PosColumn(text: '-${_currency.format(_bill!.discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
     }
-    
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'TOTAL:'.padRight(16) + _currency.format(_bill!.total).substring(1).padLeft(8),
-      weight: 1,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
-    // Divider
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: '--------------------------------',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
+
+    bytes += generator.row([
+      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: '', width: 2),
+      PosColumn(text: _currency.format(_bill!.total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+
+    bytes += generator.hr(ch: '-');
+
     // Payment details
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Collected:'.padRight(16) + _currency.format(_bill!.collectedAmount).substring(1).padLeft(8),
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 1,
-    ));
-    
+    bytes += generator.row([
+      PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: '', width: 2),
+      PosColumn(text: _currency.format(_bill!.collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+
     if (_bill!.creditAmount > 0) {
-      lines.add(LineText(
-        type: LineText.TYPE_TEXT,
-        content: 'Credit:'.padRight(16) + _currency.format(_bill!.creditAmount).substring(1).padLeft(8),
-        weight: 0,
-        align: LineText.ALIGN_LEFT,
-        linefeed: 1,
-      ));
+      bytes += generator.row([
+        PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
+        PosColumn(text: '', width: 2),
+        PosColumn(text: _currency.format(_bill!.creditAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
     }
-    
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: '',
-      weight: 0,
-      align: LineText.ALIGN_LEFT,
-      linefeed: 2,
-    ));
-    
+
+    bytes += generator.hr();
+
     // Footer
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Thank you for your business!',
-      weight: 1,
-      align: LineText.ALIGN_CENTER,
-      linefeed: 1,
-    ));
-    
-    lines.add(LineText(
-      type: LineText.TYPE_TEXT,
-      content: 'Visit again!',
-      weight: 0,
-      align: LineText.ALIGN_CENTER,
-      linefeed: 3,
-    ));
-    
-    return lines;
+    bytes += generator.text(
+      'Thank you for your business!',
+      styles: const PosStyles(align: PosAlign.center, bold: true),
+    );
+    bytes += generator.text(
+      'Visit again!',
+      styles: const PosStyles(align: PosAlign.center),
+    );
+
+    bytes += generator.feed(2);
+    bytes += generator.cut();
+
+    return bytes;
   }
 
   @override
@@ -952,6 +1012,45 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
               ],
             ),
           ),
+
+          // Printing overlay
+          if (_isPrinting)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black54,
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 10)),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(
+                          width: 56,
+                          height: 56,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text('Printing...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Text(
+                          _printStatus,
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

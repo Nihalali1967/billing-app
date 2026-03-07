@@ -40,7 +40,7 @@ dependencies:
   google_fonts: ^8.0.2
   share_plus: ^7.2.2
   url_launcher: ^6.2.4
-  bluetooth_print: ^4.3.0
+  print_bluetooth_thermal: ^1.1.0
   esc_pos_utils: ^1.1.0
 
 dev_dependencies:
