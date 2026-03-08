@@ -240,56 +240,152 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.grey[200]!),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Account Balance',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
                         ),
+                        child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.blue, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Account Balance',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue[800],
+                            ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     'Set initial credit balance or extra amount for this customer',
                     style: TextStyle(color: Colors.grey[600], fontSize: 13),
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
+                  
+                  // Credit Balance Field
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.account_balance_wallet_outlined, color: Colors.orange[700], size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Credit Balance',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange[800],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
                           controller: _creditBalanceCtrl,
                           decoration: InputDecoration(
-                            labelText: 'Credit Balance',
                             hintText: '0.00',
-                            prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Colors.orange[700]),
                             prefixText: '₹ ',
-                            helperText: 'Amount customer owes',
-                            helperStyle: TextStyle(color: Colors.orange[700], fontSize: 11),
+                            helperText: 'Amount customer owes (credit)',
+                            helperStyle: TextStyle(color: Colors.orange[600], fontSize: 11),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.orange.withOpacity(0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.orange.shade700, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
                           keyboardType: TextInputType.number,
-                          style: TextStyle(color: Colors.orange[800]),
+                          style: TextStyle(
+                            color: Colors.orange[800],
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Extra Amount Field
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withOpacity(0.2)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.add_circle_outline, color: Colors.green[700], size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Extra Amount',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[800],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
                           controller: _extraAmountCtrl,
                           decoration: InputDecoration(
-                            labelText: 'Extra Amount',
                             hintText: '0.00',
-                            prefixIcon: Icon(Icons.add_circle_outline, color: Colors.green[700]),
                             prefixText: '₹ ',
                             helperText: 'Advance payment by customer',
-                            helperStyle: TextStyle(color: Colors.green[700], fontSize: 11),
+                            helperStyle: TextStyle(color: Colors.green[600], fontSize: 11),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.green.withOpacity(0.3)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.green.shade700, width: 2),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
                           keyboardType: TextInputType.number,
-                          style: TextStyle(color: Colors.green[800]),
+                          style: TextStyle(
+                            color: Colors.green[800],
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
