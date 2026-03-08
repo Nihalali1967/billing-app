@@ -34,7 +34,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     _priceCtrl = TextEditingController(text: p?.price.toString() ?? '');
     _unitAmountCtrl =
         TextEditingController(text: p?.unitAmount?.toString() ?? '');
-    _stockCtrl = TextEditingController(text: p?.stockQty?.toString() ?? '');
+    _stockCtrl = TextEditingController(text: p?.stockQty.toString() ?? '');
     _barcodeCtrl = TextEditingController(text: p?.barcode ?? '');
     _descCtrl = TextEditingController(text: p?.description ?? '');
     _unitType = p?.unitType;
@@ -99,6 +99,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Product' : 'New Product'),
         actions: [
@@ -112,9 +113,11 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
-          children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -181,27 +184,32 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   Row(
                     children: [
                       Expanded(
+                        flex: 1,
                         child: DropdownButtonFormField<String>(
                           value: _unitType,
+                          isExpanded: true,
                           decoration: const InputDecoration(
                             labelText: 'Unit Type',
-                            prefixIcon: Icon(Icons.scale_outlined),
+                            prefixIcon: Icon(Icons.scale_outlined, size: 20),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
                           items: const [
-                            DropdownMenuItem(value: 'kg', child: Text('kg')),
-                            DropdownMenuItem(value: 'gram', child: Text('gram')),
-                            DropdownMenuItem(value: 'litre', child: Text('litre')),
-                            DropdownMenuItem(value: 'piece', child: Text('piece')),
+                            DropdownMenuItem(value: 'kg', child: Text('kg', style: TextStyle(fontSize: 14))),
+                            DropdownMenuItem(value: 'gram', child: Text('gram', style: TextStyle(fontSize: 14))),
+                            DropdownMenuItem(value: 'litre', child: Text('litre', style: TextStyle(fontSize: 14))),
+                            DropdownMenuItem(value: 'piece', child: Text('piece', style: TextStyle(fontSize: 14))),
                           ],
                           onChanged: (v) => setState(() => _unitType = v),
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
+                        flex: 1,
                         child: TextFormField(
                           controller: _unitAmountCtrl,
                           decoration: const InputDecoration(
                             labelText: 'Unit Amount',
+                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           ),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
@@ -266,10 +274,31 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
             
             const SizedBox(height: 32),
             
-            SizedBox(
+            Container(
+              width: double.infinity,
               height: 56,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Theme.of(context).colorScheme.primary, Theme.of(context).colorScheme.primary.withOpacity(0.8)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
               child: FilledButton(
                 onPressed: _isLoading ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
                 child: _isLoading
                     ? const SizedBox(
                         width: 24,
@@ -278,13 +307,14 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                       )
                     : Text(
                         isEditing ? 'Update Product' : 'Create Product',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                       ),
               ),
             ).animate().fadeIn(delay: 300.ms).scale(),
             
             const SizedBox(height: 48),
-          ],
+            ],
+          ),
         ),
       ),
     );

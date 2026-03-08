@@ -251,6 +251,63 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                                       ],
                                                     ],
                                                   ),
+                                                  // Credit/Extra balance chips
+                                                  if (c.hasCredit || c.hasExtra) ...[
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      children: [
+                                                        if (c.hasCredit)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                            margin: const EdgeInsets.only(right: 8),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.orange.withOpacity(0.1),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Icon(Icons.account_balance_wallet, size: 12, color: Colors.orange[700]),
+                                                                const SizedBox(width: 4),
+                                                                Text(
+                                                                  'Cr: ₹${c.creditBalance.toStringAsFixed(0)}',
+                                                                  style: TextStyle(
+                                                                    color: Colors.orange[700],
+                                                                    fontSize: 11,
+                                                                    fontWeight: FontWeight.bold,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        if (c.hasExtra)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.green.withOpacity(0.1),
+                                                              borderRadius: BorderRadius.circular(8),
+                                                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Icon(Icons.add_circle, size: 12, color: Colors.green[700]),
+                                                                const SizedBox(width: 4),
+                                                                Text(
+                                                                  'Ex: ₹${c.extraAmount.toStringAsFixed(0)}',
+                                                                  style: TextStyle(
+                                                                    color: Colors.green[700],
+                                                                    fontSize: 11,
+                                                                    fontWeight: FontWeight.bold,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ],
                                                 ],
                                               ),
                                             ),

@@ -4,7 +4,9 @@ class Product {
   final double price;
   final String? unitType;
   final double? unitAmount;
-  final int? stockQty;
+  final String? formattedUnit;
+  final int stockQty;
+  final String? stockStatus;
   final String? barcode;
   final bool isActive;
   final String? image;
@@ -16,7 +18,9 @@ class Product {
     required this.price,
     this.unitType,
     this.unitAmount,
-    this.stockQty,
+    this.formattedUnit,
+    this.stockQty = 0,
+    this.stockStatus,
     this.barcode,
     this.isActive = true,
     this.image,
@@ -32,7 +36,9 @@ class Product {
       unitAmount: json['unit_amount'] != null
           ? double.tryParse(json['unit_amount'].toString())
           : null,
-      stockQty: json['stock_qty'],
+      formattedUnit: json['formatted_unit'],
+      stockQty: int.tryParse(json['stock_qty']?.toString() ?? '0') ?? 0,
+      stockStatus: json['stock_status'],
       barcode: json['barcode'],
       isActive: json['is_active'] ?? true,
       image: json['image'],
@@ -41,6 +47,7 @@ class Product {
   }
 
   String get displayUnit {
+    if (formattedUnit != null && formattedUnit!.isNotEmpty) return formattedUnit!;
     if (unitType != null && unitAmount != null) {
       return '${unitAmount!.toStringAsFixed(unitAmount! == unitAmount!.toInt() ? 0 : 1)} $unitType';
     }

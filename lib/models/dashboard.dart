@@ -1,92 +1,98 @@
 class DashboardData {
-  final TodayData today;
-  final TotalsData totals;
-  final List<DaySales> last7Days;
-  final List<Map<String, dynamic>> recentBills;
-  final List<Map<String, dynamic>> topCustomers;
+  final DashboardStats stats;
+  final QuickStats quickStats;
+  final List<DashboardBill> recentBills;
 
   DashboardData({
-    required this.today,
-    required this.totals,
-    required this.last7Days,
+    required this.stats,
+    required this.quickStats,
     required this.recentBills,
-    required this.topCustomers,
   });
 
   factory DashboardData.fromJson(Map<String, dynamic> json) {
     return DashboardData(
-      today: TodayData.fromJson(json['today'] ?? {}),
-      totals: TotalsData.fromJson(json['totals'] ?? {}),
-      last7Days: json['last_7_days'] != null
-          ? (json['last_7_days'] as List)
-              .map((e) => DaySales.fromJson(e))
+      stats: DashboardStats.fromJson(json['stats'] ?? {}),
+      quickStats: QuickStats.fromJson(json['quick_stats'] ?? {}),
+      recentBills: json['recent_bills'] != null
+          ? (json['recent_bills'] as List)
+              .map((e) => DashboardBill.fromJson(e))
               .toList()
           : [],
-      recentBills: json['recent_bills'] != null
-          ? List<Map<String, dynamic>>.from(json['recent_bills'])
-          : [],
-      topCustomers: json['top_customers'] != null
-          ? List<Map<String, dynamic>>.from(json['top_customers'])
-          : [],
     );
   }
 }
 
-class TodayData {
-  final double sales;
-  final double collected;
-  final double credit;
-  final int billCount;
+class DashboardStats {
+  final double totalCreditBalance;
+  final double totalExtraAmount;
+  final double todaySales;
+  final int todayBillCount;
 
-  TodayData({
-    this.sales = 0,
-    this.collected = 0,
-    this.credit = 0,
-    this.billCount = 0,
+  DashboardStats({
+    this.totalCreditBalance = 0,
+    this.totalExtraAmount = 0,
+    this.todaySales = 0,
+    this.todayBillCount = 0,
   });
 
-  factory TodayData.fromJson(Map<String, dynamic> json) {
-    return TodayData(
-      sales: double.tryParse(json['sales']?.toString() ?? '0') ?? 0,
-      collected: double.tryParse(json['collected']?.toString() ?? '0') ?? 0,
-      credit: double.tryParse(json['credit']?.toString() ?? '0') ?? 0,
-      billCount: json['bill_count'] ?? 0,
+  factory DashboardStats.fromJson(Map<String, dynamic> json) {
+    return DashboardStats(
+      totalCreditBalance: double.tryParse(json['total_credit_balance']?.toString() ?? '0') ?? 0,
+      totalExtraAmount: double.tryParse(json['total_extra_amount']?.toString() ?? '0') ?? 0,
+      todaySales: double.tryParse(json['today_sales']?.toString() ?? '0') ?? 0,
+      todayBillCount: int.tryParse(json['today_bill_count']?.toString() ?? '0') ?? 0,
     );
   }
 }
 
-class TotalsData {
-  final int customers;
-  final int products;
-  final double creditBalance;
+class QuickStats {
+  final int activeProducts;
+  final int totalCustomers;
 
-  TotalsData({
-    this.customers = 0,
-    this.products = 0,
-    this.creditBalance = 0,
+  QuickStats({this.activeProducts = 0, this.totalCustomers = 0});
+
+  factory QuickStats.fromJson(Map<String, dynamic> json) {
+    return QuickStats(
+      activeProducts: int.tryParse(json['active_products']?.toString() ?? '0') ?? 0,
+      totalCustomers: int.tryParse(json['total_customers']?.toString() ?? '0') ?? 0,
+    );
+  }
+}
+
+class DashboardBill {
+  final int id;
+  final String billNumber;
+  final String customerName;
+  final String customerShop;
+  final double total;
+  final double creditAmount;
+  final String status;
+  final String timeAgo;
+  final DateTime? createdAt;
+
+  DashboardBill({
+    required this.id,
+    required this.billNumber,
+    this.customerName = '',
+    this.customerShop = '',
+    this.total = 0,
+    this.creditAmount = 0,
+    this.status = 'completed',
+    this.timeAgo = '',
+    this.createdAt,
   });
 
-  factory TotalsData.fromJson(Map<String, dynamic> json) {
-    return TotalsData(
-      customers: json['customers'] ?? 0,
-      products: json['products'] ?? 0,
-      creditBalance: double.tryParse(json['credit_balance']?.toString() ?? '0') ?? 0,
-    );
-  }
-}
-
-class DaySales {
-  final String date;
-  final String day;
-  final double sales;
-
-  DaySales({required this.date, required this.day, required this.sales});
-
-  factory DaySales.fromJson(Map<String, dynamic> json) {
-    return DaySales(
-      date: json['date'] ?? '',
-      day: json['day'] ?? '',
-      sales: double.tryParse(json['sales']?.toString() ?? '0') ?? 0,
+  factory DashboardBill.fromJson(Map<String, dynamic> json) {
+    return DashboardBill(
+      id: json['id'] ?? 0,
+      billNumber: json['bill_number'] ?? '',
+      customerName: json['customer_name'] ?? '',
+      customerShop: json['customer_shop'] ?? '',
+      total: double.tryParse(json['total']?.toString() ?? '0') ?? 0,
+      creditAmount: double.tryParse(json['credit_amount']?.toString() ?? '0') ?? 0,
+      status: json['status'] ?? 'completed',
+      timeAgo: json['time_ago'] ?? '',
+      createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
     );
   }
 }

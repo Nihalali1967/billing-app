@@ -27,7 +27,13 @@ class _BillingScreenState extends State<BillingScreen> {
       builder: (_) => const _CustomerSearchSheet(),
     );
     if (customer != null && mounted) {
-      context.read<BillingProvider>().setCustomer(customer.id, customer.name);
+      // Store customer with balance data
+      context.read<BillingProvider>().setCustomer(
+        customer.id, 
+        customer.name,
+        creditBalance: customer.creditBalance,
+        extraAmount: customer.extraAmount,
+      );
     }
   }
 
@@ -377,6 +383,72 @@ class _BillingScreenState extends State<BillingScreen> {
                                   if (billing.customerId == null)
                                     Text('Required to create a bill',
                                         style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                                  // Show customer balance info when selected
+                                  if (billing.customerId != null) ...[
+                                    const SizedBox(height: 8),
+                                    // Use stored balance data directly
+                                    Builder(
+                                      builder: (context) {
+                                        final creditBalance = billing.customerCreditBalance;
+                                        final extraAmount = billing.customerExtraAmount;
+                                        final hasCredit = creditBalance > 0;
+                                        final hasExtra = extraAmount > 0;
+                                        
+                                        if (!hasCredit && !hasExtra) {
+                                          return Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            child: Text('No pending balance', style: TextStyle(color: Colors.green[600], fontSize: 11)),
+                                          );
+                                        }
+                                        
+                                        return Row(
+                                          children: [
+                                            if (hasCredit)
+                                              Container(
+                                                margin: const EdgeInsets.only(right: 6),
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.orange.withOpacity(0.15),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.account_balance_wallet, size: 12, color: Colors.orange[800]),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Pending: ₹${creditBalance.toStringAsFixed(0)}',
+                                                      style: TextStyle(color: Colors.orange[800], fontSize: 11, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            if (hasExtra)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green.withOpacity(0.15),
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(color: Colors.green.withOpacity(0.4)),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(Icons.add_circle, size: 12, color: Colors.green[800]),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      'Extra: ₹${extraAmount.toStringAsFixed(0)}',
+                                                      style: TextStyle(color: Colors.green[800], fontSize: 11, fontWeight: FontWeight.bold),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -543,6 +615,17 @@ class _BillingScreenState extends State<BillingScreen> {
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.bold, fontSize: 16)),
                                         const SizedBox(height: 4),
+                                        // Show unit info if available
+                                        if (item.product.unitAmount != null && item.product.unitType != null)
+                                          Text(
+                                            'Unit: ${item.product.unitAmount!.toStringAsFixed(item.product.unitAmount! == item.product.unitAmount!.toInt() ? 0 : 1)} ${item.product.unitType}',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 11,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        const SizedBox(height: 2),
                                         Row(
                                           children: [
                                             Text(
@@ -882,7 +965,59 @@ class _CustomerSearchSheetState extends State<_CustomerSearchSheet> {
                                           fontWeight: FontWeight.bold)),
                                 ),
                                 title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text('${c.shopName ?? ''} ${c.mobile.isNotEmpty ? '• ${c.mobile}' : ''}'),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('${c.shopName ?? ''} ${c.mobile.isNotEmpty ? '• ${c.mobile}' : ''}'),
+                                    if (c.hasCredit || c.hasExtra)
+                                      Row(
+                                        children: [
+                                          if (c.hasCredit)
+                                            Container(
+                                              margin: const EdgeInsets.only(right: 6, top: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.account_balance_wallet, size: 10, color: Colors.orange[700]),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    'Cr: ₹${c.creditBalance.toStringAsFixed(0)}',
+                                                    style: TextStyle(color: Colors.orange[700], fontSize: 10, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          if (c.hasExtra)
+                                            Container(
+                                              margin: const EdgeInsets.only(top: 4),
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.green.withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(6),
+                                                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.add_circle, size: 10, color: Colors.green[700]),
+                                                  const SizedBox(width: 2),
+                                                  Text(
+                                                    'Ex: ₹${c.extraAmount.toStringAsFixed(0)}',
+                                                    style: TextStyle(color: Colors.green[700], fontSize: 10, fontWeight: FontWeight.bold),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                  ],
+                                ),
                                 onTap: () => Navigator.pop(context, c),
                               ),
                             ).animate().fadeIn(delay: (i * 30).ms).slideX(begin: 0.1);
@@ -990,8 +1125,24 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                                       color: Theme.of(context).colorScheme.primary, size: 20),
                                 ),
                                 title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text(
-                                    '${_currency.format(p.price)} ${p.displayUnit.isNotEmpty ? '• ${p.displayUnit}' : ''}'),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '${_currency.format(p.price)} ${p.displayUnit.isNotEmpty ? '• ${p.displayUnit}' : ''}',
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                    if (p.unitAmount != null && p.unitType != null)
+                                      Text(
+                                        'Unit: ${p.unitAmount!.toStringAsFixed(p.unitAmount! == p.unitAmount!.toInt() ? 0 : 1)} ${p.unitType}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[600],
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                                 trailing: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(

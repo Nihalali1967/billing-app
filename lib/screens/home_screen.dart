@@ -5,7 +5,6 @@ import '../providers/auth_provider.dart';
 import 'dashboard_screen.dart';
 import 'billing/billing_screen.dart';
 import 'bills/bill_list_screen.dart';
-import 'credits/credit_list_screen.dart';
 import 'products/product_list_screen.dart';
 import 'customers/customer_list_screen.dart';
 import 'users/user_list_screen.dart';
@@ -25,21 +24,18 @@ class _HomeScreenState extends State<HomeScreen> {
     const DashboardScreen(),
     const BillingScreen(),
     const BillListScreen(),
-    const CreditListScreen(),
   ];
 
   final List<String> _titles = [
     'Dashboard',
     'New Bill',
     'Bills History',
-    'Credits',
   ];
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final theme = Theme.of(context);
-    final isPremium = theme.colorScheme.primary.value == 0xFF4F46E5;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -198,16 +194,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                     index: 2,
                   ),
-                  _buildDrawerItem(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: 'Credits',
-                    isSelected: _currentIndex == 3,
-                    onTap: () {
-                      setState(() => _currentIndex = 3);
-                      Navigator.pop(context);
-                    },
-                    index: 3,
-                  ),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Divider(),
@@ -231,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductListScreen()));
                     },
-                    index: 4,
+                    index: 3,
                   ),
                   _buildDrawerItem(
                     icon: Icons.people_alt_rounded,
@@ -240,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Navigator.pop(context);
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerListScreen()));
                     },
-                    index: 5,
+                    index: 4,
                   ),
                   if (auth.user?.isAdmin == true)
                     _buildDrawerItem(
@@ -250,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         Navigator.pop(context);
                         Navigator.push(context, MaterialPageRoute(builder: (_) => const UserListScreen()));
                       },
-                      index: 6,
+                      index: 5,
                     ),
                 ],
               ),
@@ -310,7 +296,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildNavItem(0, Icons.dashboard_outlined, Icons.dashboard_rounded, 'Home'),
                 _buildNavItem(1, Icons.add_circle_outline, Icons.add_circle_rounded, 'Bill'),
                 _buildNavItem(2, Icons.history_outlined, Icons.history_rounded, 'History'),
-                _buildNavItem(3, Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded, 'Credit'),
               ],
             ),
           ),

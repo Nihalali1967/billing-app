@@ -27,10 +27,34 @@ class ProductProvider with ChangeNotifier {
       if (search != null && search.isNotEmpty) params['search'] = search;
       if (activeOnly) params['active_only'] = '1';
       final response = await ApiService.get('/products', queryParams: params);
-      _products = (response['data'] as List)
-          .map((e) => Product.fromJson(e))
-          .toList();
-      final meta = response['meta'] ?? {};
+      debugPrint('Products API response: $response');
+      
+      // Handle different response structures
+      List<dynamic> productsList;
+      Map<String, dynamic> meta = {};
+      
+      if (response['data'] is List) {
+        // Direct list: { "data": [...] }
+        productsList = response['data'] as List;
+      } else if (response['data'] is Map) {
+        final data = response['data'] as Map<String, dynamic>;
+        if (data['products'] is Map) {
+          // Nested: { "data": { "products": { "data": [...] } } }
+          final productsPaginated = data['products'] as Map<String, dynamic>;
+          productsList = productsPaginated['data'] as List? ?? [];
+          meta = productsPaginated;
+        } else if (data['data'] is List) {
+          // Laravel style: { "data": { "data": [...] } }
+          productsList = data['data'] as List;
+          meta = data;
+        } else {
+          productsList = [];
+        }
+      } else {
+        productsList = [];
+      }
+
+      _products = productsList.map((e) => Product.fromJson(e)).toList();
       _currentPage = meta['current_page'] ?? 1;
       _lastPage = meta['last_page'] ?? 1;
       _total = meta['total'] ?? _products.length;

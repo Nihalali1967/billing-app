@@ -101,73 +101,15 @@ class _BillListScreenState extends State<BillListScreen> {
             ).animate().fadeIn().slideY(begin: -0.2, end: 0),
           ),
 
-          // Summary Header
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [theme.colorScheme.primary, theme.colorScheme.primary.withBlue(255)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+          // Total count
+          if (provider.total > 0)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text(
+                '${provider.total} bills found',
+                style: TextStyle(color: Colors.grey[500], fontSize: 13, fontWeight: FontWeight.w500),
               ),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Sales',
-                        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _currency.format(provider.summary['total_sales'] ?? 0),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(width: 1, height: 40, color: Colors.white.withOpacity(0.3)),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Collected',
-                        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _currency.format(provider.summary['total_collected'] ?? 0),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2, end: 0),
-
-          const SizedBox(height: 8),
 
           Expanded(
             child: provider.isLoading
@@ -197,7 +139,6 @@ class _BillListScreenState extends State<BillListScreen> {
                           itemCount: provider.bills.length,
                           itemBuilder: (context, index) {
                             final b = provider.bills[index];
-                            final hasCredit = b.creditAmount > 0;
 
                             return Card(
                               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -238,9 +179,9 @@ class _BillListScreenState extends State<BillListScreen> {
                                             ),
                                           ),
                                           Text(
-                                            b.createdAt != null
+                                            b.date ?? (b.createdAt != null
                                                 ? DateFormat('dd MMM, hh:mm a').format(b.createdAt!.toLocal())
-                                                : '',
+                                                : ''),
                                             style: TextStyle(color: Colors.grey[600], fontSize: 12),
                                           ),
                                         ],
@@ -264,10 +205,12 @@ class _BillListScreenState extends State<BillListScreen> {
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
-                                                if (b.items.isNotEmpty)
+                                                if (b.customerShop != null && b.customerShop!.isNotEmpty)
                                                   Text(
-                                                    '${b.items.length} items',
+                                                    b.customerShop!,
                                                     style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
                                                   ),
                                               ],
                                             ),
@@ -282,7 +225,7 @@ class _BillListScreenState extends State<BillListScreen> {
                                                   fontSize: 16,
                                                 ),
                                               ),
-                                              if (hasCredit)
+                                              if (b.hasCredit)
                                                 Text(
                                                   'Cr: ${_currency.format(b.creditAmount)}',
                                                   style: TextStyle(color: Colors.orange[700], fontSize: 12, fontWeight: FontWeight.w500),

@@ -26,9 +26,31 @@ class UserProvider with ChangeNotifier {
       };
       if (search != null && search.isNotEmpty) params['search'] = search;
       final response = await ApiService.get('/users', queryParams: params);
-      _users =
-          (response['data'] as List).map((e) => User.fromJson(e)).toList();
-      final meta = response['meta'] ?? {};
+      debugPrint('Users API response: $response');
+      
+      // Handle different response structures
+      List<dynamic> usersList;
+      Map<String, dynamic> meta = {};
+      
+      if (response['data'] is List) {
+        usersList = response['data'] as List;
+      } else if (response['data'] is Map) {
+        final data = response['data'] as Map<String, dynamic>;
+        if (data['users'] is Map) {
+          final usersPaginated = data['users'] as Map<String, dynamic>;
+          usersList = usersPaginated['data'] as List? ?? [];
+          meta = usersPaginated;
+        } else if (data['data'] is List) {
+          usersList = data['data'] as List;
+          meta = data;
+        } else {
+          usersList = [];
+        }
+      } else {
+        usersList = [];
+      }
+
+      _users = usersList.map((e) => User.fromJson(e)).toList();
       _currentPage = meta['current_page'] ?? 1;
       _lastPage = meta['last_page'] ?? 1;
       _isLoading = false;
@@ -37,6 +59,15 @@ class UserProvider with ChangeNotifier {
       _isLoading = false;
       _error = e.toString();
       notifyListeners();
+    }
+  }
+
+  Future<User?> getUser(int id) async {
+    try {
+      final response = await ApiService.get('/users/$id');
+      return User.fromJson(response['data']);
+    } catch (_) {
+      return null;
     }
   }
 

@@ -9,7 +9,8 @@ class BillProvider with ChangeNotifier {
   int _currentPage = 1;
   int _lastPage = 1;
   int _total = 0;
-  Map<String, dynamic> _summary = {};
+  List<Map<String, dynamic>> _filterCustomers = [];
+  List<Map<String, dynamic>> _filterUsers = [];
 
   List<Bill> get bills => _bills;
   bool get isLoading => _isLoading;
@@ -17,8 +18,9 @@ class BillProvider with ChangeNotifier {
   int get currentPage => _currentPage;
   int get lastPage => _lastPage;
   int get total => _total;
-  Map<String, dynamic> get summary => _summary;
   bool get hasMore => _currentPage < _lastPage;
+  List<Map<String, dynamic>> get filterCustomers => _filterCustomers;
+  List<Map<String, dynamic>> get filterUsers => _filterUsers;
 
   Future<void> fetch({
     String? dateFrom,
@@ -32,10 +34,7 @@ class BillProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final params = <String, String>{
-        'page': page.toString(),
-        'per_page': '20',
-      };
+      final params = <String, String>{'page': page.toString()};
       if (dateFrom != null) params['date_from'] = dateFrom;
       if (dateTo != null) params['date_to'] = dateTo;
       if (customerId != null) params['customer_id'] = customerId.toString();
@@ -43,13 +42,19 @@ class BillProvider with ChangeNotifier {
       if (search != null && search.isNotEmpty) params['search'] = search;
 
       final response = await ApiService.get('/bills', queryParams: params);
-      _bills =
-          (response['data'] as List).map((e) => Bill.fromJson(e)).toList();
-      _summary = response['summary'] ?? {};
-      final meta = response['meta'] ?? {};
-      _currentPage = meta['current_page'] ?? 1;
-      _lastPage = meta['last_page'] ?? 1;
-      _total = meta['total'] ?? _bills.length;
+      final data = response['data'] ?? {};
+      final billsPaginated = data['bills'] ?? {};
+      final billsList = billsPaginated['data'] as List? ?? [];
+
+      _bills = billsList.map((e) => Bill.fromListJson(e)).toList();
+      _currentPage = billsPaginated['current_page'] ?? 1;
+      _lastPage = billsPaginated['last_page'] ?? 1;
+      _total = billsPaginated['total'] ?? _bills.length;
+
+      final filterOptions = data['filter_options'] ?? {};
+      _filterCustomers = List<Map<String, dynamic>>.from(filterOptions['customers'] ?? []);
+      _filterUsers = List<Map<String, dynamic>>.from(filterOptions['users'] ?? []);
+
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -62,16 +67,7 @@ class BillProvider with ChangeNotifier {
   Future<Bill?> getBill(int id) async {
     try {
       final response = await ApiService.get('/bills/$id');
-      return Bill.fromJson(response['data']);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<Map<String, dynamic>?> getPrintData(int id) async {
-    try {
-      final response = await ApiService.get('/bills/$id/print');
-      return response['data'];
+      return Bill.fromDetailJson(response['data']);
     } catch (_) {
       return null;
     }
@@ -86,6 +82,33 @@ class BillProvider with ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getPrintData(int id) async {
+    try {
+      final response = await ApiService.get('/bills/$id/print');
+      return response['data'];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<dynamic>> exportBills({
+    String? dateFrom,
+    String? dateTo,
+    int? customerId,
+  }) async {
+    try {
+      final params = <String, String>{};
+      if (dateFrom != null) params['date_from'] = dateFrom;
+      if (dateTo != null) params['date_to'] = dateTo;
+      if (customerId != null) params['customer_id'] = customerId.toString();
+
+      final response = await ApiService.get('/bills/export', queryParams: params);
+      return response['data'] ?? [];
+    } catch (_) {
+      return [];
     }
   }
 }

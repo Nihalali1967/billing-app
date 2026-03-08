@@ -102,68 +102,85 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
     // Show share options dialog
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(width: 48, height: 6, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(3))),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  const Text('Share Bill', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 24),
-                  GridView.count(
-                    shrinkWrap: true,
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 1,
-                    children: [
-                      _buildShareOption(
-                        icon: Icons.message,
-                        label: 'WhatsApp',
-                        color: Colors.green,
-                        onTap: () => _shareToWhatsApp(billDetails),
-                      ),
-                      _buildShareOption(
-                        icon: Icons.sms,
-                        label: 'SMS',
-                        color: Colors.blue,
-                        onTap: () => _shareToSMS(billDetails),
-                      ),
-                      _buildShareOption(
-                        icon: Icons.email,
-                        label: 'Email',
-                        color: Colors.red,
-                        onTap: () => _shareToEmail(billDetails),
-                      ),
-                      _buildShareOption(
-                        icon: Icons.more_horiz,
-                        label: 'More',
-                        color: Colors.grey,
-                        onTap: () => _shareToSystem(billDetails),
-                      ),
-                    ],
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.4,
+        maxChildSize: 0.8,
+        builder: (_, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(0),
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 48,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(3),
                   ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Share Bill', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildShareOption(
+                          icon: Icons.message,
+                          label: 'WhatsApp',
+                          color: Colors.green,
+                          onTap: () => _shareToWhatsApp(billDetails),
+                        ),
+                        _buildShareOption(
+                          icon: Icons.sms,
+                          label: 'SMS',
+                          color: Colors.blue,
+                          onTap: () => _shareToSMS(billDetails),
+                        ),
+                        _buildShareOption(
+                          icon: Icons.email,
+                          label: 'Email',
+                          color: Colors.red,
+                          onTap: () => _shareToEmail(billDetails),
+                        ),
+                        _buildShareOption(
+                          icon: Icons.share,
+                          label: 'More',
+                          color: Colors.grey,
+                          onTap: () => _shareToSystem(billDetails),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Cancel', style: TextStyle(fontSize: 13)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -180,28 +197,31 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
         Navigator.pop(context);
         onTap();
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
+        width: 70,
+        padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.2),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 24),
+              child: Icon(icon, color: color, size: 20),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: color,
               ),
@@ -685,7 +705,6 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
     }
 
     final bill = _bill!;
-    final hasCredit = bill.creditAmount > 0;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -772,14 +791,14 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: hasCredit ? Colors.orange.withOpacity(0.2) : Colors.green.withOpacity(0.2),
+                              color: bill.hasCredit ? Colors.orange.withOpacity(0.2) : Colors.green.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: hasCredit ? Colors.orange.withOpacity(0.5) : Colors.green.withOpacity(0.5)),
+                              border: Border.all(color: bill.hasCredit ? Colors.orange.withOpacity(0.5) : Colors.green.withOpacity(0.5)),
                             ),
                             child: Text(
-                              hasCredit ? 'CREDIT' : 'PAID',
+                              bill.hasCredit ? 'CREDIT' : 'PAID',
                               style: TextStyle(
-                                color: hasCredit ? Colors.orange[200] : Colors.green[200],
+                                color: bill.hasCredit ? Colors.orange[200] : Colors.green[200],
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                                 letterSpacing: 1,
@@ -1051,6 +1070,19 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
                 ),
               ),
             ),
+          
+          // Floating Action Button for Share
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: FloatingActionButton.extended(
+              onPressed: _shareBill,
+              icon: const Icon(Icons.share_rounded),
+              label: const Text('Share'),
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: Colors.white,
+            ).animate().scale(delay: 400.ms, curve: Curves.easeOutBack),
+          ),
         ],
       ),
     );

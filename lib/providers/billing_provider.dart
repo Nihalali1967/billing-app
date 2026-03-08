@@ -38,6 +38,8 @@ class BillingProvider with ChangeNotifier {
   String _notes = '';
   bool _isLoading = false;
   String? _error;
+  double _customerCreditBalance = 0;
+  double _customerExtraAmount = 0;
 
   List<BillingItem> get items => _items;
   int? get customerId => _customerId;
@@ -47,20 +49,26 @@ class BillingProvider with ChangeNotifier {
   String get notes => _notes;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  double get customerCreditBalance => _customerCreditBalance;
+  double get customerExtraAmount => _customerExtraAmount;
 
   double get subtotal => _items.fold(0, (sum, item) => sum + item.lineTotal);
   double get total => (subtotal - _discount).clamp(0, double.infinity);
   double get creditAmount => (total - _collectedAmount).clamp(0, double.infinity);
 
-  void setCustomer(int id, String name) {
+  void setCustomer(int id, String name, {double? creditBalance, double? extraAmount}) {
     _customerId = id;
     _customerName = name;
+    _customerCreditBalance = creditBalance ?? 0;
+    _customerExtraAmount = extraAmount ?? 0;
     notifyListeners();
   }
 
   void clearCustomer() {
     _customerId = null;
     _customerName = null;
+    _customerCreditBalance = 0;
+    _customerExtraAmount = 0;
     notifyListeners();
   }
 

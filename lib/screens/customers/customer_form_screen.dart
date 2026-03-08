@@ -19,6 +19,8 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
   late final TextEditingController _mobileCtrl;
   late final TextEditingController _mobileSecondaryCtrl;
   late final TextEditingController _locationCtrl;
+  late final TextEditingController _creditBalanceCtrl;
+  late final TextEditingController _extraAmountCtrl;
   bool _isLoading = false;
 
   bool get isEditing => widget.customer != null;
@@ -33,6 +35,8 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     _mobileSecondaryCtrl =
         TextEditingController(text: c?.mobileSecondary ?? '');
     _locationCtrl = TextEditingController(text: c?.location ?? '');
+    _creditBalanceCtrl = TextEditingController(text: c?.creditBalance.toString() ?? '0');
+    _extraAmountCtrl = TextEditingController(text: c?.extraAmount.toString() ?? '0');
   }
 
   @override
@@ -42,6 +46,8 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     _mobileCtrl.dispose();
     _mobileSecondaryCtrl.dispose();
     _locationCtrl.dispose();
+    _creditBalanceCtrl.dispose();
+    _extraAmountCtrl.dispose();
     super.dispose();
   }
 
@@ -62,6 +68,16 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     }
     if (_locationCtrl.text.isNotEmpty) {
       data['location'] = _locationCtrl.text.trim();
+    }
+    
+    // Add credit balance and extra amount
+    final creditBalance = double.tryParse(_creditBalanceCtrl.text) ?? 0;
+    final extraAmount = double.tryParse(_extraAmountCtrl.text) ?? 0;
+    if (creditBalance > 0) {
+      data['credit_balance'] = creditBalance;
+    }
+    if (extraAmount > 0) {
+      data['extra_amount'] = extraAmount;
     }
 
     final provider = context.read<CustomerProvider>();
@@ -214,6 +230,70 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
                 ],
               ),
             ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
+            
+            const SizedBox(height: 24),
+            
+            // Credit & Extra Balance Section
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Account Balance',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Set initial credit balance or extra amount for this customer',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _creditBalanceCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Credit Balance',
+                            hintText: '0.00',
+                            prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: Colors.orange[700]),
+                            prefixText: '₹ ',
+                            helperText: 'Amount customer owes',
+                            helperStyle: TextStyle(color: Colors.orange[700], fontSize: 11),
+                          ),
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(color: Colors.orange[800]),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextFormField(
+                          controller: _extraAmountCtrl,
+                          decoration: InputDecoration(
+                            labelText: 'Extra Amount',
+                            hintText: '0.00',
+                            prefixIcon: Icon(Icons.add_circle_outline, color: Colors.green[700]),
+                            prefixText: '₹ ',
+                            helperText: 'Advance payment by customer',
+                            helperStyle: TextStyle(color: Colors.green[700], fontSize: 11),
+                          ),
+                          keyboardType: TextInputType.number,
+                          style: TextStyle(color: Colors.green[800]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(delay: 250.ms).slideY(begin: 0.1, end: 0),
             
             const SizedBox(height: 32),
             

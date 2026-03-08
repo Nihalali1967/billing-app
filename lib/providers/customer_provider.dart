@@ -26,10 +26,31 @@ class CustomerProvider with ChangeNotifier {
       final params = <String, String>{'page': page.toString(), 'per_page': '15'};
       if (search != null && search.isNotEmpty) params['search'] = search;
       final response = await ApiService.get('/customers', queryParams: params);
-      _customers = (response['data'] as List)
-          .map((e) => Customer.fromJson(e))
-          .toList();
-      final meta = response['meta'] ?? {};
+      debugPrint('Customers API response: $response');
+      
+      // Handle different response structures
+      List<dynamic> customersList;
+      Map<String, dynamic> meta = {};
+      
+      if (response['data'] is List) {
+        customersList = response['data'] as List;
+      } else if (response['data'] is Map) {
+        final data = response['data'] as Map<String, dynamic>;
+        if (data['customers'] is Map) {
+          final customersPaginated = data['customers'] as Map<String, dynamic>;
+          customersList = customersPaginated['data'] as List? ?? [];
+          meta = customersPaginated;
+        } else if (data['data'] is List) {
+          customersList = data['data'] as List;
+          meta = data;
+        } else {
+          customersList = [];
+        }
+      } else {
+        customersList = [];
+      }
+
+      _customers = customersList.map((e) => Customer.fromJson(e)).toList();
       _currentPage = meta['current_page'] ?? 1;
       _lastPage = meta['last_page'] ?? 1;
       _total = meta['total'] ?? _customers.length;
@@ -45,6 +66,7 @@ class CustomerProvider with ChangeNotifier {
   Future<Map<String, dynamic>?> getCustomer(int id) async {
     try {
       final response = await ApiService.get('/customers/$id');
+      debugPrint('Customer detail API response: $response');
       return response['data'];
     } catch (_) {
       return null;
