@@ -1,15 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../providers/auth_provider.dart';
 import 'dashboard_screen.dart';
 import 'billing/billing_screen.dart';
 import 'bills/bill_list_screen.dart';
-import 'credits/credit_list_screen.dart';
-import 'products/product_list_screen.dart';
-import 'customers/customer_list_screen.dart';
-import 'users/user_list_screen.dart';
-import 'profile_screen.dart';
+import 'more_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,21 +19,19 @@ class _HomeScreenState extends State<HomeScreen> {
     const DashboardScreen(),
     const BillingScreen(),
     const BillListScreen(),
-    const CreditListScreen(),
+    const MoreScreen(),
   ];
 
   final List<String> _titles = [
     'Dashboard',
     'New Bill',
-    'Bills History',
-    'Credits',
+    'Bills',
+    'More',
   ];
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
     final theme = Theme.of(context);
-    final isPremium = theme.colorScheme.primary.value == 0xFF4F46E5;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
@@ -51,222 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
             letterSpacing: -0.5,
           ),
         ).animate(key: ValueKey(_currentIndex)).fadeIn().slideX(begin: 0.1, end: 0),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: IconButton(
-              icon: Hero(
-                tag: 'profile_avatar',
-                child: CircleAvatar(
-                  radius: 16,
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  child: Text(
-                    auth.user?.name.substring(0, 1).toUpperCase() ?? 'U',
-                    style: TextStyle(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) => const ProfileScreen(),
-                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                      const begin = Offset(0.0, 1.0);
-                      const end = Offset.zero;
-                      const curve = Curves.easeOutCubic;
-                      var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                      return SlideTransition(position: animation.drive(tween), child: child);
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      drawer: Drawer(
-        backgroundColor: Colors.white,
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 64, 24, 24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [theme.colorScheme.primary, const Color(0xFF3730A3)],
-                ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.auto_awesome,
-                        size: 32,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ).animate().scale(delay: 200.ms, duration: 400.ms, curve: Curves.easeOutBack),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            auth.user?.name ?? 'User',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: -0.5,
-                            ),
-                          ).animate().fadeIn(delay: 300.ms).slideX(begin: 0.1, end: 0),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              auth.user?.role.toUpperCase() ?? '',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.1, end: 0),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-                children: [
-                  _buildDrawerItem(
-                    icon: Icons.dashboard_rounded,
-                    title: 'Dashboard',
-                    isSelected: _currentIndex == 0,
-                    onTap: () {
-                      setState(() => _currentIndex = 0);
-                      Navigator.pop(context);
-                    },
-                    index: 0,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.receipt_long_rounded,
-                    title: 'New Bill',
-                    isSelected: _currentIndex == 1,
-                    onTap: () {
-                      setState(() => _currentIndex = 1);
-                      Navigator.pop(context);
-                    },
-                    index: 1,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.history_rounded,
-                    title: 'Bills History',
-                    isSelected: _currentIndex == 2,
-                    onTap: () {
-                      setState(() => _currentIndex = 2);
-                      Navigator.pop(context);
-                    },
-                    index: 2,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.account_balance_wallet_rounded,
-                    title: 'Credits',
-                    isSelected: _currentIndex == 3,
-                    onTap: () {
-                      setState(() => _currentIndex = 3);
-                      Navigator.pop(context);
-                    },
-                    index: 3,
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: Divider(),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.only(left: 16, top: 8, bottom: 16),
-                    child: Text(
-                      'MANAGEMENT',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ).animate().fadeIn(delay: 600.ms),
-                  _buildDrawerItem(
-                    icon: Icons.inventory_2_rounded,
-                    title: 'Products',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductListScreen()));
-                    },
-                    index: 4,
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.people_alt_rounded,
-                    title: 'Customers',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerListScreen()));
-                    },
-                    index: 5,
-                  ),
-                  if (auth.user?.isAdmin == true)
-                    _buildDrawerItem(
-                      icon: Icons.admin_panel_settings_rounded,
-                      title: 'Users',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => const UserListScreen()));
-                      },
-                      index: 6,
-                    ),
-                ],
-              ),
-            ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'v1.0.0',
-                  style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
@@ -309,43 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _buildNavItem(0, Icons.dashboard_outlined, Icons.dashboard_rounded, 'Home'),
                 _buildNavItem(1, Icons.add_circle_outline, Icons.add_circle_rounded, 'Bill'),
-                _buildNavItem(2, Icons.history_outlined, Icons.history_rounded, 'History'),
-                _buildNavItem(3, Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded, 'Credit'),
+                _buildNavItem(2, Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Bills'),
+                _buildNavItem(3, Icons.more_horiz_outlined, Icons.more_horiz_rounded, 'More'),
               ],
             ),
           ),
         ),
       ).animate().slideY(begin: 1, end: 0, duration: 600.ms, curve: Curves.easeOutCubic),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool isSelected = false,
-    required int index,
-  }) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        leading: Icon(
-          icon,
-          color: isSelected ? theme.colorScheme.primary : Colors.grey[600],
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? theme.colorScheme.primary : Colors.black87,
-          ),
-        ),
-        selected: isSelected,
-        selectedTileColor: theme.colorScheme.primaryContainer.withOpacity(0.5),
-        onTap: onTap,
-      ).animate().fadeIn(delay: (300 + (index * 50)).ms).slideX(begin: -0.1, end: 0),
     );
   }
 

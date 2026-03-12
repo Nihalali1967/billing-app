@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../models/customer.dart';
 import '../../models/bill.dart';
-import '../../models/credit.dart';
 import '../../providers/customer_provider.dart';
 import '../bills/bill_detail_screen.dart';
 
@@ -66,9 +65,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
     final customer = Customer.fromJson(_data!['customer'] ?? {});
     final bills = (_data!['recent_bills'] as List?)
             ?.map((e) => Bill.fromJson(e))
-            .toList() ?? [];
-    final credits = (_data!['recent_credits'] as List?)
-            ?.map((e) => CreditTransaction.fromJson(e))
             .toList() ?? [];
 
     return Scaffold(
@@ -411,130 +407,6 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                     ).animate().fadeIn(delay: (300 + (i * 50)).ms).slideX(begin: 0.1);
                   }),
 
-                const SizedBox(height: 32),
-
-                // Recent Credits Section
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.history_edu_rounded, color: Colors.orange, size: 18),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Credit History',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
-                ).animate().fadeIn(delay: 500.ms).slideX(begin: -0.1),
-                const SizedBox(height: 16),
-                
-                if (credits.isEmpty)
-                  _buildEmptyState('No credit history found', Icons.credit_score_outlined).animate().fadeIn(delay: 600.ms)
-                else
-                  ...credits.asMap().entries.map((e) {
-                    final i = e.key;
-                    final t = e.value;
-                    final isCredit = t.type == 'credit';
-                    
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(color: Colors.grey[100]!),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: isCredit ? Colors.orange.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Icon(
-                                isCredit ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                                color: isCredit ? Colors.orange[700] : Colors.green[700],
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text(
-                                        isCredit ? '+ ${_currency.format(t.amount)}' : '- ${_currency.format(t.amount)}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: isCredit ? Colors.orange[700] : Colors.green[700],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[100],
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          'Bal: ${_currency.format(t.balanceAfter)}',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey[800]),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  if (t.billNumber != null)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Text('Bill: ${t.billNumber}', style: TextStyle(color: Colors.grey[700], fontSize: 13, fontWeight: FontWeight.w500)),
-                                    ),
-                                  if (t.notes != null && t.notes!.isNotEmpty)
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 4),
-                                      child: Text(t.notes!, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                                    ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.access_time_rounded, size: 12, color: Colors.grey[400]),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        t.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(t.createdAt!.toLocal()) : '',
-                                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ).animate().fadeIn(delay: (600 + (i * 50)).ms).slideX(begin: 0.1);
-                  }),
               ],
             ),
           ),

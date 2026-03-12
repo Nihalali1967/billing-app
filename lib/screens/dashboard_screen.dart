@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../providers/dashboard_provider.dart';
+import 'bills/bill_detail_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -249,7 +250,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.transparent,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(20),
-                        onTap: () {},
+                        onTap: () {
+                          final billId = bill['id'];
+                          if (billId != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => BillDetailScreen(billId: billId)),
+                            );
+                          }
+                        },
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(

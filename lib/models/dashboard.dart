@@ -59,11 +59,13 @@ class TotalsData {
   final int customers;
   final int products;
   final double creditBalance;
+  final double extraAmount;
 
   TotalsData({
     this.customers = 0,
     this.products = 0,
     this.creditBalance = 0,
+    this.extraAmount = 0,
   });
 
   factory TotalsData.fromJson(Map<String, dynamic> json) {
@@ -71,20 +73,23 @@ class TotalsData {
       customers: json['customers'] ?? 0,
       products: json['products'] ?? 0,
       creditBalance: double.tryParse(json['credit_balance']?.toString() ?? '0') ?? 0,
+      extraAmount: double.tryParse(json['extra_amount']?.toString() ?? '0') ?? 0,
     );
   }
 }
 
 class DaySales {
   final String date;
+  final String label;
   final String day;
   final double sales;
 
-  DaySales({required this.date, required this.day, required this.sales});
+  DaySales({required this.date, this.label = '', required this.day, required this.sales});
 
   factory DaySales.fromJson(Map<String, dynamic> json) {
     return DaySales(
       date: json['date'] ?? '',
+      label: json['label'] ?? '',
       day: json['day'] ?? '',
       sales: double.tryParse(json['sales']?.toString() ?? '0') ?? 0,
     );

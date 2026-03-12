@@ -16,9 +16,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _priceCtrl;
-  late final TextEditingController _unitAmountCtrl;
-  late final TextEditingController _stockCtrl;
-  late final TextEditingController _barcodeCtrl;
   late final TextEditingController _descCtrl;
   String? _unitType;
   bool _isActive = true;
@@ -32,10 +29,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     final p = widget.product;
     _nameCtrl = TextEditingController(text: p?.name ?? '');
     _priceCtrl = TextEditingController(text: p?.price.toString() ?? '');
-    _unitAmountCtrl =
-        TextEditingController(text: p?.unitAmount?.toString() ?? '');
-    _stockCtrl = TextEditingController(text: p?.stockQty?.toString() ?? '');
-    _barcodeCtrl = TextEditingController(text: p?.barcode ?? '');
     _descCtrl = TextEditingController(text: p?.description ?? '');
     _unitType = p?.unitType;
     _isActive = p?.isActive ?? true;
@@ -45,9 +38,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _priceCtrl.dispose();
-    _unitAmountCtrl.dispose();
-    _stockCtrl.dispose();
-    _barcodeCtrl.dispose();
     _descCtrl.dispose();
     super.dispose();
   }
@@ -63,13 +53,6 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
     };
 
     if (_unitType != null) data['unit_type'] = _unitType;
-    if (_unitAmountCtrl.text.isNotEmpty) {
-      data['unit_amount'] = double.parse(_unitAmountCtrl.text);
-    }
-    if (_stockCtrl.text.isNotEmpty) {
-      data['stock_qty'] = int.parse(_stockCtrl.text);
-    }
-    if (_barcodeCtrl.text.isNotEmpty) data['barcode'] = _barcodeCtrl.text;
     if (_descCtrl.text.isNotEmpty) data['description'] = _descCtrl.text;
 
     final provider = context.read<ProductProvider>();
@@ -172,80 +155,22 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Unit & Inventory',
+                    'Unit & Details',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          value: _unitType,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit Type',
-                            prefixIcon: Icon(Icons.scale_outlined),
-                          ),
-                          items: const [
-                            DropdownMenuItem(value: 'kg', child: Text('kg')),
-                            DropdownMenuItem(value: 'gram', child: Text('gram')),
-                            DropdownMenuItem(value: 'litre', child: Text('litre')),
-                            DropdownMenuItem(value: 'piece', child: Text('piece')),
-                          ],
-                          onChanged: (v) => setState(() => _unitType = v),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: TextFormField(
-                          controller: _unitAmountCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Unit Amount',
-                          ),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      ),
+                  DropdownButtonFormField<String>(
+                    value: _unitType,
+                    decoration: const InputDecoration(
+                      labelText: 'Unit Type',
+                      prefixIcon: Icon(Icons.scale_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'kg', child: Text('kg')),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _stockCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Stock Quantity',
-                      prefixIcon: Icon(Icons.warehouse_outlined),
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
-              ),
-            ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0),
-            
-            const SizedBox(height: 24),
-            
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Additional Details',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  const SizedBox(height: 24),
-                  TextFormField(
-                    controller: _barcodeCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Barcode',
-                      prefixIcon: Icon(Icons.qr_code_scanner),
-                    ),
+                    onChanged: (v) => setState(() => _unitType = v),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -262,7 +187,7 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                   ),
                 ],
               ),
-            ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1, end: 0),
+            ).animate().fadeIn(delay: 100.ms).slideY(begin: 0.1, end: 0),
             
             const SizedBox(height: 32),
             

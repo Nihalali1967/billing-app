@@ -7,7 +7,6 @@ import 'providers/product_provider.dart';
 import 'providers/customer_provider.dart';
 import 'providers/billing_provider.dart';
 import 'providers/bill_provider.dart';
-import 'providers/credit_provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -29,7 +28,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
         ChangeNotifierProvider(create: (_) => BillingProvider()),
         ChangeNotifierProvider(create: (_) => BillProvider()),
-        ChangeNotifierProvider(create: (_) => CreditProvider()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: MaterialApp(

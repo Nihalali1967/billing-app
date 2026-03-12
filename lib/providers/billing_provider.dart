@@ -33,11 +33,17 @@ class BillingProvider with ChangeNotifier {
   List<BillingItem> _items = [];
   int? _customerId;
   String? _customerName;
+  double _customerCreditBalance = 0;
+  double _customerExtraAmount = 0;
   double _discount = 0;
   double _collectedAmount = 0;
   String _notes = '';
   bool _isLoading = false;
   String? _error;
+
+  // Preview data from Step 1
+  Map<String, dynamic>? _previewData;
+  String? _previewToken;
 
   List<BillingItem> get items => _items;
   int? get customerId => _customerId;
@@ -47,20 +53,29 @@ class BillingProvider with ChangeNotifier {
   String get notes => _notes;
   bool get isLoading => _isLoading;
   String? get error => _error;
+  Map<String, dynamic>? get previewData => _previewData;
+  String? get previewToken => _previewToken;
+  double get customerCreditBalance => _customerCreditBalance;
+  double get customerExtraAmount => _customerExtraAmount;
 
   double get subtotal => _items.fold(0, (sum, item) => sum + item.lineTotal);
   double get total => (subtotal - _discount).clamp(0, double.infinity);
   double get creditAmount => (total - _collectedAmount).clamp(0, double.infinity);
 
-  void setCustomer(int id, String name) {
+  Future<void> setCustomer(int id, String name, {double? creditBalance, double? extraAmount}) async {
     _customerId = id;
     _customerName = name;
+    _customerCreditBalance = creditBalance ?? 0;
+    _customerExtraAmount = extraAmount ?? 0;
+    
     notifyListeners();
   }
 
   void clearCustomer() {
     _customerId = null;
     _customerName = null;
+    _customerCreditBalance = 0;
+    _customerExtraAmount = 0;
     notifyListeners();
   }
 
@@ -116,10 +131,13 @@ class BillingProvider with ChangeNotifier {
     _collectedAmount = 0;
     _notes = '';
     _error = null;
+    _previewData = null;
+    _previewToken = null;
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>?> submitBill() async {
+  /// Step 1: Preview the bill - returns preview data + preview_token
+  Future<Map<String, dynamic>?> previewBill() async {
     if (_customerId == null || _items.isEmpty) {
       _error = 'Select a customer and add at least one item';
       notifyListeners();
@@ -136,10 +154,38 @@ class BillingProvider with ChangeNotifier {
         'collected_amount': _collectedAmount,
         'notes': _notes,
       };
-      final response = await ApiService.post('/billing', body: body);
+      final response = await ApiService.post('/billing/preview', body: body);
+      _previewData = response['data'];
+      _previewToken = response['preview_token'];
       _isLoading = false;
+      notifyListeners();
+      return response;
+    } catch (e) {
+      _isLoading = false;
+      _error = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Step 2: Finalize the bill using preview_token
+  Future<Map<String, dynamic>?> finalizeBill() async {
+    if (_previewToken == null) {
+      _error = 'No preview token. Please preview the bill first.';
+      notifyListeners();
+      return null;
+    }
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final response = await ApiService.post('/billing/finalize', body: {
+        'preview_token': _previewToken,
+      });
+      _isLoading = false;
+      final billData = response['data'];
       clearBill();
-      return response['data'];
+      return billData;
     } catch (e) {
       _isLoading = false;
       _error = e.toString();

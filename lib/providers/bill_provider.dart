@@ -45,8 +45,10 @@ class BillProvider with ChangeNotifier {
       final response = await ApiService.get('/bills', queryParams: params);
       _bills =
           (response['data'] as List).map((e) => Bill.fromJson(e)).toList();
-      _summary = response['summary'] ?? {};
       final meta = response['meta'] ?? {};
+      _summary = meta['summary'] != null
+          ? Map<String, dynamic>.from(meta['summary'])
+          : {};
       _currentPage = meta['current_page'] ?? 1;
       _lastPage = meta['last_page'] ?? 1;
       _total = meta['total'] ?? _bills.length;
@@ -71,6 +73,15 @@ class BillProvider with ChangeNotifier {
   Future<Map<String, dynamic>?> getPrintData(int id) async {
     try {
       final response = await ApiService.get('/bills/$id/print');
+      return response['data'];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getWhatsAppData(int id) async {
+    try {
+      final response = await ApiService.get('/bills/$id/whatsapp');
       return response['data'];
     } catch (_) {
       return null;

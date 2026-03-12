@@ -254,13 +254,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                           fontSize: 16,
                                                         ),
                                                       ),
-                                                      if (p.displayUnit.isNotEmpty) ...[
+                                                      if (p.unitType != null && p.unitType!.isNotEmpty) ...[
                                                         Padding(
                                                           padding: const EdgeInsets.symmetric(horizontal: 8),
                                                           child: Container(width: 4, height: 4, decoration: BoxDecoration(color: Colors.grey[300], shape: BoxShape.circle)),
                                                         ),
                                                         Text(
-                                                          p.displayUnit,
+                                                          '/ ${p.unitType}',
                                                           style: TextStyle(
                                                             color: Colors.grey[500],
                                                             fontWeight: FontWeight.w500,
