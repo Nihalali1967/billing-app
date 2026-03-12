@@ -8,6 +8,7 @@ import '../../models/customer.dart';
 import '../../providers/billing_provider.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/customer_provider.dart';
+import 'bill_preview_screen.dart';
 
 class BillingScreen extends StatefulWidget {
   const BillingScreen({super.key});
@@ -27,8 +28,13 @@ class _BillingScreenState extends State<BillingScreen> {
       builder: (_) => const _CustomerSearchSheet(),
     );
     if (customer != null && mounted) {
+<<<<<<< HEAD
       // Store customer with balance data
       context.read<BillingProvider>().setCustomer(
+=======
+      // Set customer with full data including credit and extra amounts
+      await context.read<BillingProvider>().setCustomer(
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
         customer.id, 
         customer.name,
         creditBalance: customer.creditBalance,
@@ -189,7 +195,7 @@ class _BillingScreenState extends State<BillingScreen> {
     );
   }
 
-  Future<void> _submitBill() async {
+  Future<void> _previewBill() async {
     final billing = context.read<BillingProvider>();
     if (billing.customerId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -214,53 +220,13 @@ class _BillingScreenState extends State<BillingScreen> {
       return;
     }
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Confirm Bill'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SummaryRow('Customer', billing.customerName ?? '', icon: Icons.person_rounded),
-            _SummaryRow('Items', billing.items.length.toString(), icon: Icons.inventory_2_rounded),
-            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider()),
-            _SummaryRow('Total', _currency.format(billing.total), isBold: true, icon: Icons.receipt_long_rounded),
-            _SummaryRow('Collected', _currency.format(billing.collectedAmount), color: Colors.green, isBold: true, icon: Icons.payments_rounded),
-            if (billing.creditAmount > 0)
-              _SummaryRow('Credit', _currency.format(billing.creditAmount), color: Colors.orange[700], isBold: true, icon: Icons.credit_score_rounded),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton.icon(
-              onPressed: () => Navigator.pop(ctx, true),
-              icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Create Bill')),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    final result = await billing.submitBill();
+    final result = await billing.previewBill();
     if (!mounted) return;
 
     if (result != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle, color: Colors.white),
-              const SizedBox(width: 8),
-              Text('Bill ${result['bill_number'] ?? ''} created successfully!'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const BillPreviewScreen()),
       );
     } else if (billing.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -279,36 +245,13 @@ class _BillingScreenState extends State<BillingScreen> {
     final billing = context.watch<BillingProvider>();
     final theme = Theme.of(context);
 
-    // ── FIX: measure bottom nav bar + system bottom inset so the
-    //   floating summary and list padding always clear both.
     final bottomNavHeight = kBottomNavigationBarHeight;
     final systemBottom = MediaQuery.of(context).padding.bottom;
-    // Extra room so the last list item is never hidden behind the panel.
-    // 320 was hardcoded before; now we derive it from the actual widget.
-    // We use a GlobalKey approach-free estimate: the panel is roughly 300 dp
-    // tall (content) + bottomNavHeight + systemBottom.
     final summaryPanelHeight = 220.0 + bottomNavHeight + systemBottom;
 
     return Stack(
       children: [
-        // Premium Background
-        Positioned(
-          top: -100,
-          right: -50,
-          child: Container(
-            width: 250,
-            height: 250,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: theme.colorScheme.primary.withOpacity(0.05),
-            ),
-          ),
-        ),
-
-        // ── FIX: wrap the main Column in SafeArea so content respects
-        //   system insets (status bar, bottom gesture area).
         SafeArea(
-          // bottom: false because the floating panel handles its own SafeArea.
           bottom: false,
           child: Column(
             children: [
@@ -382,6 +325,7 @@ class _BillingScreenState extends State<BillingScreen> {
                                   ),
                                   if (billing.customerId == null)
                                     Text('Required to create a bill',
+<<<<<<< HEAD
                                         style: TextStyle(fontSize: 11, color: Colors.grey[500])),
                                   // Show customer balance info when selected
                                   if (billing.customerId != null) ...[
@@ -447,6 +391,49 @@ class _BillingScreenState extends State<BillingScreen> {
                                           ],
                                         );
                                       },
+=======
+                                        style: TextStyle(fontSize: 11, color: Colors.grey[500]))
+                                  else ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        if (billing.customerCreditBalance > 0) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.orange.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'Credit: ${_currency.format(billing.customerCreditBalance)}',
+                                              style: TextStyle(
+                                                color: Colors.orange[700],
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                        ],
+                                        if (billing.customerExtraAmount > 0) ...[
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.blue.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              'Extra: ${_currency.format(billing.customerExtraAmount)}',
+                                              style: TextStyle(
+                                                color: Colors.blue[700],
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
                                     ),
                                   ],
                                 ],
@@ -538,10 +525,7 @@ class _BillingScreenState extends State<BillingScreen> {
 
               const SizedBox(height: 8),
 
-              // ── FIX: Cart Items list inside Expanded so it fills remaining
-              //   vertical space correctly inside the Column, then we add
-              //   bottom padding equal to the floating panel height so the
-              //   last item is always reachable above the panel.
+              // Cart Items
               Expanded(
                 child: billing.items.isEmpty
                     ? Center(
@@ -570,11 +554,7 @@ class _BillingScreenState extends State<BillingScreen> {
                       ).animate().fadeIn(delay: 200.ms).scale()
                     : ListView.builder(
                         padding: EdgeInsets.only(
-                          left: 20,
-                          right: 20,
-                          top: 8,
-                          // ── FIX: use dynamic padding = floating panel height
-                          //   so the last item scrolls fully above the panel.
+                          left: 20, right: 20, top: 8,
                           bottom: summaryPanelHeight,
                         ),
                         itemCount: billing.items.length,
@@ -629,7 +609,7 @@ class _BillingScreenState extends State<BillingScreen> {
                                         Row(
                                           children: [
                                             Text(
-                                              '${item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2)} × ${_currency.format(item.effectivePrice)}',
+                                              '${item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2)} kg × ${_currency.format(item.effectivePrice)}',
                                               style: TextStyle(
                                                   color: Colors.grey[600],
                                                   fontSize: 13,
@@ -643,7 +623,7 @@ class _BillingScreenState extends State<BillingScreen> {
                                                 decoration: BoxDecoration(
                                                     color: Colors.orange.withOpacity(0.1),
                                                     borderRadius: BorderRadius.circular(4)),
-                                                child: const Text('Custom Price',
+                                                child: const Text('Custom',
                                                     style: TextStyle(
                                                         color: Colors.orange,
                                                         fontSize: 10,
@@ -728,9 +708,6 @@ class _BillingScreenState extends State<BillingScreen> {
                       ),
                     ],
                   ),
-                  // ── FIX: SafeArea wraps the panel content so the Complete Bill
-                  //   button and bottom padding respect the device's bottom
-                  //   system UI (home indicator / nav bar).
                   child: SafeArea(
                     top: false,
                     child: Padding(
@@ -793,16 +770,16 @@ class _BillingScreenState extends State<BillingScreen> {
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
-                              onPressed: billing.isLoading ? null : _submitBill,
+                              onPressed: billing.isLoading ? null : _previewBill,
                               icon: billing.isLoading
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2.5, color: Colors.white))
-                                  : const Icon(Icons.check_circle_rounded),
+                                  : const Icon(Icons.preview_rounded),
                               label: Text(
-                                billing.isLoading ? 'Processing...' : 'Complete Bill',
+                                billing.isLoading ? 'Processing...' : 'Preview Bill',
                                 style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -1125,6 +1102,7 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                                       color: Theme.of(context).colorScheme.primary, size: 20),
                                 ),
                                 title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+<<<<<<< HEAD
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -1143,6 +1121,10 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                                       ),
                                   ],
                                 ),
+=======
+                                subtitle: Text(
+                                    '${_currency.format(p.price)}${p.unitType != null ? ' / ${p.unitType}' : ''}'),
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
                                 trailing: Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(

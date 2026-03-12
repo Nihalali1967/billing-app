@@ -63,7 +63,11 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
 
     final customer = Customer.fromJson(_data!['customer'] ?? _data!);
     final bills = (_data!['recent_bills'] as List?)
+<<<<<<< HEAD
             ?.map((e) => Bill.fromListJson(e))
+=======
+            ?.map((e) => Bill.fromJson(e))
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
             .toList() ?? [];
 
     return Scaffold(
@@ -150,6 +154,7 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                               ],
                             ),
                           ),
+<<<<<<< HEAD
                         ],
                       ),
                     ),
@@ -297,6 +302,17 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
               }),
           ],
         ),
+=======
+                        ),
+                      ),
+                    ).animate().fadeIn(delay: (300 + (i * 50)).ms).slideX(begin: 0.1);
+                  }),
+
+              ],
+            ),
+          ),
+        ],
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
       ),
     );
   }

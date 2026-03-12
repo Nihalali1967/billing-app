@@ -60,46 +60,61 @@ class _BillListScreenState extends State<BillListScreen> {
     final provider = context.watch<BillProvider>();
     final theme = Theme.of(context);
 
-    return Scaffold(
-      backgroundColor: theme.colorScheme.surface,
-      appBar: AppBar(
-        title: const Text('Bills History'),
-        actions: [
-          IconButton(
-            icon: Icon(_dateRange == null ? Icons.calendar_month_outlined : Icons.calendar_month),
-            color: _dateRange == null ? null : theme.colorScheme.primary,
-            onPressed: _selectDateRange,
-          ),
-          if (_dateRange != null)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: () {
-                setState(() => _dateRange = null);
-                _search();
-              },
-            ),
-        ],
-      ),
-      body: Column(
+    return Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by bill number or customer...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    _search();
-                  },
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search bills...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              onPressed: () {
+                                _searchController.clear();
+                                _search();
+                              },
+                            )
+                          : null,
+                    ),
+                    onChanged: (v) => setState(() {}),
+                    onSubmitted: (_) => _search(),
+                  ),
                 ),
-              ),
-              onSubmitted: (_) => _search(),
+                const SizedBox(width: 8),
+                Container(
+                  decoration: BoxDecoration(
+                    color: _dateRange != null
+                        ? theme.colorScheme.primaryContainer
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: IconButton(
+                    icon: Icon(
+                      _dateRange == null ? Icons.calendar_month_outlined : Icons.calendar_month,
+                      color: _dateRange != null ? theme.colorScheme.primary : Colors.grey[600],
+                    ),
+                    onPressed: _selectDateRange,
+                  ),
+                ),
+                if (_dateRange != null)
+                  IconButton(
+                    icon: Icon(Icons.clear, color: Colors.grey[500], size: 20),
+                    onPressed: () {
+                      setState(() => _dateRange = null);
+                      _search();
+                    },
+                  ),
+              ],
             ).animate().fadeIn().slideY(begin: -0.2, end: 0),
           ),
+          const SizedBox(height: 8),
 
           // Total count
           if (provider.total > 0)
@@ -282,7 +297,6 @@ class _BillListScreenState extends State<BillListScreen> {
               ),
             ).animate().slideY(begin: 1, end: 0),
         ],
-      ),
     );
   }
 }

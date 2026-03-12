@@ -42,6 +42,7 @@ class BillProvider with ChangeNotifier {
       if (search != null && search.isNotEmpty) params['search'] = search;
 
       final response = await ApiService.get('/bills', queryParams: params);
+<<<<<<< HEAD
       final data = response['data'] ?? {};
       final billsPaginated = data['bills'] ?? {};
       final billsList = billsPaginated['data'] as List? ?? [];
@@ -55,6 +56,17 @@ class BillProvider with ChangeNotifier {
       _filterCustomers = List<Map<String, dynamic>>.from(filterOptions['customers'] ?? []);
       _filterUsers = List<Map<String, dynamic>>.from(filterOptions['users'] ?? []);
 
+=======
+      _bills =
+          (response['data'] as List).map((e) => Bill.fromJson(e)).toList();
+      final meta = response['meta'] ?? {};
+      _summary = meta['summary'] != null
+          ? Map<String, dynamic>.from(meta['summary'])
+          : {};
+      _currentPage = meta['current_page'] ?? 1;
+      _lastPage = meta['last_page'] ?? 1;
+      _total = meta['total'] ?? _bills.length;
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -68,6 +80,15 @@ class BillProvider with ChangeNotifier {
     try {
       final response = await ApiService.get('/bills/$id');
       return Bill.fromDetailJson(response['data']);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getWhatsAppData(int id) async {
+    try {
+      final response = await ApiService.get('/bills/$id/whatsapp');
+      return response['data'];
     } catch (_) {
       return null;
     }

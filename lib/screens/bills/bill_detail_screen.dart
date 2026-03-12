@@ -233,16 +233,60 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
     );
   }
 
-  Future<void> _shareToWhatsApp(String text) async {
-    final whatsappUrl = 'https://wa.me/?text=${Uri.encodeComponent(text)}';
+  Future<void> _shareToWhatsApp(String fallbackText) async {
+    if (_bill == null) return;
+
+    // Create detailed bill text in the same format as BillPreviewScreen
+    String billDetails = '🧾 BILL DETAILS\n';
+    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
+    billDetails += 'Bill No: ${_bill!.billNumber}\n';
+    billDetails += 'Customer: ${_bill!.customerName ?? 'Walk-in Customer'}\n';
+    if (_bill!.customerMobile != null) {
+      billDetails += 'Mobile: ${_bill!.customerMobile}\n';
+    }
+    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
+    
+    // Items with unit price
+    for (var item in _bill!.items) {
+      final name = item.productName ?? 'Unknown';
+      final qty = item.quantity;
+      final itemTotal = item.total;
+      final unitPrice = qty > 0 ? itemTotal / qty : 0;
+      billDetails += '$name - ₹${unitPrice.toStringAsFixed(2)} x ${qty} kg = ₹${itemTotal.toStringAsFixed(2)}\n';
+    }
+    
+    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
+    billDetails += 'Subtotal: ₹${_bill!.subtotal.toStringAsFixed(2)}\n';
+    if (_bill!.discount > 0) {
+      billDetails += 'Discount: -₹${_bill!.discount.toStringAsFixed(2)}\n';
+    }
+    if (_bill!.previousCredit > 0) {
+      billDetails += 'Previous Credit: ₹${_bill!.previousCredit.toStringAsFixed(2)}\n';
+    }
+    if (_bill!.customerExtraAmount > 0) {
+      billDetails += 'Extra Amount: ₹${_bill!.customerExtraAmount.toStringAsFixed(2)}\n';
+    }
+    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
+    billDetails += 'Total: ₹${_bill!.total.toStringAsFixed(2)}\n';
+    billDetails += 'Collected: ₹${_bill!.collectedAmount.toStringAsFixed(2)}\n';
+    if (_bill!.creditAmount > 0)
+      billDetails += 'Credit: ₹${_bill!.creditAmount.toStringAsFixed(2)}\n';
+    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
+    billDetails += 'Billed by: ${_bill!.billedByName ?? 'Unknown'}\n';
+    billDetails += 'Generated on ${_bill!.date}';
+    
+    // Always use generic WhatsApp URL (forward-based, no customer number)
+    final whatsappUrl = 'https://wa.me/?text=${Uri.encodeComponent(billDetails)}';
     final uri = Uri.parse(whatsappUrl);
     
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('WhatsApp not available')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WhatsApp not available')),
+        );
+      }
     }
   }
 
@@ -852,7 +896,7 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
                               Icon(Icons.admin_panel_settings_rounded, size: 14, color: Colors.white.withOpacity(0.7)),
                               const SizedBox(width: 6),
                               Text(
-                                bill.billedBy ?? '',
+                                bill.billedByName ?? '',
                                 style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13),
                               ),
                             ],
@@ -941,7 +985,7 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
                                   Expanded(
                                     flex: 1,
                                     child: Text(
-                                      item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2),
+                                      '${item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2)} kg',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey[800], fontSize: 13),
                                     ),
@@ -1189,34 +1233,91 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                           Row(
                             children: const [
-                              Expanded(flex: 3, child: Text('Item', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                              Expanded(flex: 2, child: Text('Item', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                              Expanded(flex: 1, child: Text('Price', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.right)),
                               Expanded(flex: 1, child: Text('Qty', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
                               Expanded(flex: 2, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.right)),
                             ],
                           ),
                           const SizedBox(height: 4),
-                          ...(printData['items'] as List? ?? []).map((item) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(flex: 3, child: Text('${item['name']}', style: const TextStyle(fontSize: 12))),
-                                Expanded(flex: 1, child: Text('${item['qty']}', style: const TextStyle(fontSize: 12), textAlign: TextAlign.center)),
-                                Expanded(flex: 2, child: Text(_currency.format((item['total'] ?? 0).toDouble()), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                              ],
+                          ...(printData['items'] as List? ?? []).map((item) {
+                            // Calculate unit price
+                            final quantity = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+                            final total = double.tryParse(item['total']?.toString() ?? '0') ?? 0;
+                            final unitPrice = quantity > 0 ? total / quantity : 0;
+                            
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      '${item['product']?['name'] ?? item['product_name'] ?? item['name'] ?? 'Unknown'}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: Text(
+                                      _currency.format(unitPrice),
+                                      style: const TextStyle(fontSize: 12),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 1,
+                                    child: Text(
+                                      '${item['quantity'] ?? 0} kg',
+                                      style: const TextStyle(fontSize: 12),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Text(
+                                      _currency.format(total),
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
+                            child: Text(
+                              '----------------------------------------',
+                              maxLines: 1,
+                              overflow: TextOverflow.clip,
+                              style: TextStyle(color: Colors.grey),
                             ),
-                          )),
-                          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
-                          _PrintTotalRow('Subtotal', (printData['subtotal'] ?? 0).toDouble()),
+                          ),
+                          _PrintTotalRow(
+                            'Subtotal',
+                            (printData['subtotal'] ?? 0).toDouble(),
+                          ),
                           if ((printData['discount'] ?? 0) > 0)
-                            _PrintTotalRow('Discount', (printData['discount'] ?? 0).toDouble()),
-                          _PrintTotalRow('Total', (printData['total'] ?? 0).toDouble(), isBold: true),
+                            _PrintTotalRow(
+                              'Discount',
+                              (printData['discount'] ?? 0).toDouble(),
+                            ),
+                          _PrintTotalRow(
+                            'Total',
+                            (printData['total'] ?? 0).toDouble(),
+                            isBold: true,
+                          ),
                           const SizedBox(height: 8),
                           _PrintTotalRow('Collected', (printData['collected_amount'] ?? 0).toDouble()),
                           if ((printData['credit_amount'] ?? 0) > 0)
                             _PrintTotalRow('Credit', (printData['credit_amount'] ?? 0).toDouble(), isBold: true),
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
-                          Text('Billed by: ${printData['billed_by'] ?? ''}', style: const TextStyle(fontSize: 11)),
+                          Text('Billed by: ${printData['billed_by']?['name'] ?? printData['billed_by_name'] ?? printData['billed_by'] ?? 'Unknown'}', style: const TextStyle(fontSize: 11)),
                           const SizedBox(height: 16),
                           const Center(child: Text('Thank you for your business!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
                           const SizedBox(height: 24),

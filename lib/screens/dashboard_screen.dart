@@ -196,6 +196,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               style: const TextStyle(color: Color(0xFF6C5CE7), fontWeight: FontWeight.bold, fontSize: 12),
                             ),
                           ),
+<<<<<<< HEAD
                           const SizedBox(width: 12),
                           // Customer info
                           Expanded(
@@ -207,6 +208,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+=======
+                          child: const Icon(Icons.history_rounded, color: Colors.purple, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Recent Bills',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                            color: const Color(0xFF1E293B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ).animate().fadeIn(delay: 600.ms).slideX(begin: -0.1),
+                
+                const SizedBox(height: 16),
+                
+                ...data.recentBills.asMap().entries.map((e) {
+                  final i = e.key;
+                  final bill = e.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () {
+                          final billId = bill['id'];
+                          if (billId != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => BillDetailScreen(billId: billId)),
+                            );
+                          }
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [theme.colorScheme.primary.withOpacity(0.1), theme.colorScheme.primary.withOpacity(0.2)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
                                 ),
                                 if (bill.customerShop.isNotEmpty)
                                   Text(bill.customerShop, style: TextStyle(color: Colors.grey[500], fontSize: 11)),

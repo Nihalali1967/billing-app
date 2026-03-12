@@ -112,7 +112,7 @@ class CustomerProvider with ChangeNotifier {
   Future<List<Customer>> search(String query) async {
     try {
       final response =
-          await ApiService.get('/customers-search', queryParams: {'q': query});
+          await ApiService.get('/customers/search', queryParams: {'search': query});
       final data = response['data'];
       if (data is List) {
         return data.map((e) => Customer.fromJson(e)).toList();

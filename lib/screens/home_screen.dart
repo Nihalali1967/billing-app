@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../providers/auth_provider.dart';
 import 'dashboard_screen.dart';
 import 'billing/billing_screen.dart';
 import 'bills/bill_list_screen.dart';
+<<<<<<< HEAD
 import 'products/product_list_screen.dart';
 import 'customers/customer_list_screen.dart';
 import 'users/user_list_screen.dart';
 import 'profile_screen.dart';
+=======
+import 'more_screen.dart';
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,17 +26,25 @@ class _HomeScreenState extends State<HomeScreen> {
     const DashboardScreen(),
     const BillingScreen(),
     const BillListScreen(),
+<<<<<<< HEAD
+=======
+    const MoreScreen(),
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
   ];
 
   final List<String> _titles = [
     'Dashboard',
     'New Bill',
+<<<<<<< HEAD
     'Bills History',
+=======
+    'Bills',
+    'More',
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
   ];
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -47,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
             letterSpacing: -0.5,
           ),
         ).animate(key: ValueKey(_currentIndex)).fadeIn().slideX(begin: 0.1, end: 0),
+<<<<<<< HEAD
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
@@ -253,6 +264,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+=======
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
@@ -295,42 +308,17 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 _buildNavItem(0, Icons.dashboard_outlined, Icons.dashboard_rounded, 'Home'),
                 _buildNavItem(1, Icons.add_circle_outline, Icons.add_circle_rounded, 'Bill'),
+<<<<<<< HEAD
                 _buildNavItem(2, Icons.history_outlined, Icons.history_rounded, 'History'),
+=======
+                _buildNavItem(2, Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Bills'),
+                _buildNavItem(3, Icons.more_horiz_outlined, Icons.more_horiz_rounded, 'More'),
+>>>>>>> 2794856b839bffc7c894d0fa96d70a95b4821349
               ],
             ),
           ),
         ),
       ).animate().slideY(begin: 1, end: 0, duration: 600.ms, curve: Curves.easeOutCubic),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool isSelected = false,
-    required int index,
-  }) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        leading: Icon(
-          icon,
-          color: isSelected ? theme.colorScheme.primary : Colors.grey[600],
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? theme.colorScheme.primary : Colors.black87,
-          ),
-        ),
-        selected: isSelected,
-        selectedTileColor: theme.colorScheme.primaryContainer.withOpacity(0.5),
-        onTap: onTap,
-      ).animate().fadeIn(delay: (300 + (index * 50)).ms).slideX(begin: -0.1, end: 0),
     );
   }
 

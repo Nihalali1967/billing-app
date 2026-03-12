@@ -114,8 +114,7 @@ class ProductProvider with ChangeNotifier {
 
   Future<List<Product>> search(String query) async {
     try {
-      final response =
-          await ApiService.get('/products-search', queryParams: {'q': query});
+      final response = await ApiService.get('/products/search', queryParams: {'search': query});
       return (response['data'] as List)
           .map((e) => Product.fromJson(e))
           .toList();

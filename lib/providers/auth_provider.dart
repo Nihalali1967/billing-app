@@ -17,8 +17,8 @@ class AuthProvider with ChangeNotifier {
     await ApiService.loadToken();
     if (!ApiService.isLoggedIn) return false;
     try {
-      final response = await ApiService.get('/profile');
-      _user = User.fromJson(response['data']);
+      final response = await ApiService.get('/auth/me');
+      _user = User.fromJson(response['user']);
       notifyListeners();
       return true;
     } catch (e) {
@@ -32,14 +32,12 @@ class AuthProvider with ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final response = await ApiService.post('/login', body: {
+      final response = await ApiService.post('/auth/login', body: {
         'login': login,
         'password': password,
-        'device_name': 'flutter-app',
       });
-      final data = response['data'];
-      await ApiService.saveToken(data['token']);
-      _user = User.fromJson(data['user']);
+      await ApiService.saveToken(response['token']);
+      _user = User.fromJson(response['user']);
       _isLoading = false;
       notifyListeners();
       return true;
@@ -53,7 +51,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> logout() async {
     try {
-      await ApiService.post('/logout');
+      await ApiService.post('/auth/logout');
     } catch (_) {}
     _user = null;
     await ApiService.clearToken();
@@ -62,8 +60,8 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> fetchProfile() async {
     try {
-      final response = await ApiService.get('/profile');
-      _user = User.fromJson(response['data']);
+      final response = await ApiService.get('/auth/me');
+      _user = User.fromJson(response['user']);
       notifyListeners();
     } catch (_) {}
   }

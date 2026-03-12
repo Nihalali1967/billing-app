@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../providers/customer_provider.dart';
 import 'customer_form_screen.dart';
-import 'customer_detail_screen.dart';
 
 class CustomerListScreen extends StatefulWidget {
   const CustomerListScreen({super.key});
@@ -162,13 +161,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(20),
                                       onTap: () async {
-                                        await Navigator.push(
+                                        final result = await Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (_) => CustomerDetailScreen(customerId: c.id),
+                                            builder: (_) => CustomerFormScreen(customer: c),
                                           ),
                                         );
-                                        provider.fetch(search: _searchController.text.trim());
+                                        if (result == true) {
+                                          provider.fetch(search: _searchController.text.trim());
+                                        }
                                       },
                                       child: Padding(
                                         padding: const EdgeInsets.all(16),
