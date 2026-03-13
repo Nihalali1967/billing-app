@@ -588,10 +588,31 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     if (customerMobile.isNotEmpty) {
       receipt.writeln(customerMobile);
     }
+    // Show customer table balance - use provider values (from customer table)
+    var customerCreditBalance = billing.customerCreditBalance;
+    var customerExtraAmount = billing.customerExtraAmount;
+    
+    // Fallback to preview data only if provider values are 0
+    if (customerCreditBalance == 0) {
+      customerCreditBalance = double.tryParse(preview['customer']?['credit_balance']?.toString() ?? '0') ?? 0;
+    }
+    if (customerExtraAmount == 0) {
+      customerExtraAmount = double.tryParse(preview['customer']?['extra_amount']?.toString() ?? '0') ?? 0;
+    }
+    
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      receipt.writeln();
+      if (customerCreditBalance > 0) {
+        receipt.writeln('${'Customer Credit Bal:'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
+      }
+      if (customerExtraAmount > 0) {
+        receipt.writeln('${'Customer Extra Amt:'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
+      }
+    }
     receipt.writeln();
 
     // Separator line
-    receipt.writeln('----------------------------------------------');
+    receipt.writeln('--------------------------------------');
 
     // Items header - aligned columns (Item, Price, Qty, Amount)
     receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
@@ -614,7 +635,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       );
     }
 
-    receipt.writeln('----------------------------------------------');
+    receipt.writeln('--------------------------------------');
     receipt.writeln();
 
     // Totals section - right aligned
@@ -633,7 +654,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
 
     receipt.writeln();
-    receipt.writeln('----------------------------------------------');
+    receipt.writeln('---------------------------------------');
     receipt.writeln();
     receipt.writeln('Billed by: $billedBy');
     receipt.writeln();
@@ -767,6 +788,35 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                               Text(printData['customer']['shop_name']),
                             if (printData['customer']['mobile'] != null)
                               Text(printData['customer']['mobile']),
+                            // Show customer table balance if exists
+                            Builder(builder: (ctx) {
+                              final billing = ctx.read<BillingProvider>();
+                              // Use provider values first (from customer table)
+                              var creditBal = billing.customerCreditBalance;
+                              var extraAmt = billing.customerExtraAmount;
+                              
+                              // Fallback to preview data only if provider values are 0
+                              if (creditBal == 0) {
+                                creditBal = (printData['customer']['credit_balance'] ?? 0).toDouble();
+                              }
+                              if (extraAmt == 0) {
+                                extraAmt = (printData['customer']['extra_amount'] ?? 0).toDouble();
+                              }
+                              
+                              if (creditBal > 0 || extraAmt > 0) {
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    if (creditBal > 0)
+                                      _PrintTotalRow('Customer Credit Bal', creditBal),
+                                    if (extraAmt > 0)
+                                      _PrintTotalRow('Customer Extra Amt', extraAmt),
+                                  ],
+                                );
+                              }
+                              return const SizedBox.shrink();
+                            }),
                           ],
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                           Row(
@@ -1144,12 +1194,42 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final customerName = preview['customer']?['name'] ?? 'Walk-in Customer';
     final customerMobile = preview['customer']?['mobile'] ?? '';
     
+    // Get customer credit/extra from provider (customer table) first
+    var customerCreditBalance = billing.customerCreditBalance;
+    var customerExtraAmount = billing.customerExtraAmount;
+    
+    // Fallback to preview data only if provider values are 0
+    if (customerCreditBalance == 0) {
+      customerCreditBalance = double.tryParse(preview['customer']?['credit_balance']?.toString() ?? '0') ?? 0;
+    }
+    if (customerExtraAmount == 0) {
+      customerExtraAmount = double.tryParse(preview['customer']?['extra_amount']?.toString() ?? '0') ?? 0;
+    }
+    
     bytes += generator.text('Bill No: $billNumber', styles: PosStyles(bold: true));
     bytes += generator.text('Customer: $customerName');
     if (customerMobile.isNotEmpty) {
       bytes += generator.text('Mobile: $customerMobile');
     }
     bytes += generator.text('Date: ${DateTime.now().toString().split('.')[0]}');
+    
+    // Add customer credit/extra to thermal print if exists
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      bytes += generator.hr(ch: '-');
+      if (customerCreditBalance > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Cust Credit Bal:', width: 8),
+          PosColumn(text: _currency.format(customerCreditBalance), width: 4, styles: PosStyles(align: PosAlign.right)),
+        ]);
+      }
+      if (customerExtraAmount > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Cust Extra Amt:', width: 8),
+          PosColumn(text: _currency.format(customerExtraAmount), width: 4, styles: PosStyles(align: PosAlign.right)),
+        ]);
+      }
+    }
+    
     bytes += generator.hr();
     
     // Items header

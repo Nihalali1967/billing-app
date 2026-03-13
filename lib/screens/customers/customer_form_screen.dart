@@ -70,15 +70,11 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
       data['location'] = _locationCtrl.text.trim();
     }
     
-    // Add credit and extra amounts
+    // Add credit and extra amounts - always send to backend
     final creditAmount = double.tryParse(_creditAmountCtrl.text) ?? 0;
     final extraAmount = double.tryParse(_extraAmountCtrl.text) ?? 0;
-    if (creditAmount != 0) {
-      data['credit_balance'] = creditAmount;
-    }
-    if (extraAmount != 0) {
-      data['extra_amount'] = extraAmount;
-    }
+    data['credit_balance'] = creditAmount;
+    data['extra_amount'] = extraAmount;
 
     final provider = context.read<CustomerProvider>();
     bool success;
@@ -93,9 +89,19 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     if (success && mounted) {
       Navigator.pop(context, true);
     } else if (mounted) {
+      // Check if it's a validation error and show specific message
+      String errorMsg = provider.error ?? 'Failed to save customer';
+      if (errorMsg.contains('Validation error') && errorMsg.contains('errors:')) {
+        // Try to extract specific field errors
+        final match = RegExp(r'errors:\s*\{([^}]+)\}').firstMatch(errorMsg);
+        if (match != null) {
+          final errorsStr = match.group(1);
+          errorMsg = 'Validation failed: $errorsStr';
+        }
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.error ?? 'Failed to save customer'),
+          content: Text(errorMsg),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),

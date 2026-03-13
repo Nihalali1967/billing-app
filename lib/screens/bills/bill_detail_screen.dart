@@ -4,11 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import '../../models/bill.dart';
 import '../../providers/bill_provider.dart';
+import '../../providers/customer_provider.dart';
 
 class BillDetailScreen extends StatefulWidget {
   final int billId;
@@ -77,354 +77,123 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
   }
 
   Future<void> _shareBill() async {
-    if (_bill == null) return;
+    // Fetch print data to get customer credit/extra amounts
+    final printData = await context.read<BillProvider>().getPrintData(widget.billId);
+    if (printData == null || !mounted) return;
 
     // Create bill details text for sharing with proper formatting
-    final billNumber = _bill!.billNumber;
-    final customerName = _bill!.customerName ?? 'Walk-in Customer';
-    final customerShop = _bill!.customerShop ?? '';
-    final customerMobile = _bill!.customerMobile ?? '';
-    final total = _bill!.total;
-    final subtotal = _bill!.subtotal;
-    final discount = _bill!.discount;
-    final collectedAmount = _bill!.collectedAmount;
-    final creditAmount = _bill!.creditAmount;
-    final billedBy = _bill!.billedByName ?? 'Unknown';
-    final items = _bill!.items;
-    final dateStr = _bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A';
+    final billNumber = printData['bill_number'] ?? 'N/A';
+    final customerName = printData['customer']?['name'] ?? 'Walk-in Customer';
+    final customerShop = printData['customer']?['shop_name'] ?? '';
+    final customerMobile = printData['customer']?['mobile'] ?? '';
+    final total = (printData['total'] ?? 0).toDouble();
+    final subtotal = (printData['subtotal'] ?? 0).toDouble();
+    final discount = (printData['discount'] ?? 0).toDouble();
+    final collectedAmount = (printData['collected_amount'] ?? 0).toDouble();
+    final creditAmount = (printData['credit_amount'] ?? 0).toDouble();
+    final billedBy = printData['billed_by']?['name'] ?? printData['billed_by_name'] ?? 'Unknown';
+    final items = printData['items'] as List? ?? [];
+    final dateStr = printData['date'] ?? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
 
-    // Build formatted receipt text
-    StringBuffer receipt = StringBuffer();
-
-    // Header
-    receipt.writeln('                   STAR CHIPS                   ');
-    receipt.writeln('                 --- Receipt ---                ');
-    receipt.writeln();
-
-    // Bill info row
-    receipt.writeln('Bill No: ${billNumber.toString().padLeft(28)}');
-    receipt.writeln('Date: ${dateStr.padLeft(30)}');
-    receipt.writeln();
-
-    // Customer info
-    receipt.writeln('Customer:');
-    receipt.writeln(customerName);
-    if (customerShop.isNotEmpty) {
-      receipt.writeln(customerShop);
-    }
-    if (customerMobile.isNotEmpty) {
-      receipt.writeln(customerMobile);
-    }
-    receipt.writeln();
-
-    // Separator line
-    receipt.writeln('----------------------------------------');
-
-    // Items header - aligned columns (Item, Price, Qty, Amount)
-    receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
-
-    // Items
-    for (var item in items) {
-      final name = item.productName ?? 'Unknown';
-      final qty = item.quantity;
-      final itemTotal = item.lineTotal;
-      final unitPrice = qty > 0 ? itemTotal / qty : 0;
-
-      // Truncate name if too long
-      String displayName = name.length > 11 ? '${name.substring(0, 10)}..' : name;
-
-      receipt.writeln(
-        '${displayName.padRight(12)} '
-        '${'₹${unitPrice.toStringAsFixed(1)}'.padLeft(10)} '
-        '${'$qty kg'.padLeft(8)} '
-        '${'₹${itemTotal.toStringAsFixed(2)}'.padLeft(10)}'
-      );
-    }
-
-    receipt.writeln('----------------------------------------');
-    receipt.writeln();
-
-    // Totals section - right aligned
-    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
-
-    if (discount > 0) {
-      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
-    }
-
-    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
-    receipt.writeln();
-    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
-
-    if (creditAmount > 0) {
-      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
-    }
-
-    receipt.writeln();
-    receipt.writeln('----------------------------------------');
-    receipt.writeln();
-    receipt.writeln('Billed by: $billedBy');
-    receipt.writeln();
-    receipt.writeln('    Thank you for your business!');
-    receipt.writeln('         Visit again!');
-
-    final billDetails = receipt.toString();
-
-    // Show share options dialog
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(width: 48, height: 6, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(3))),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  const Text('Share Bill', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 24),
-                  GridView.count(
-                    shrinkWrap: true,
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 1,
-                    children: [
-                      _buildShareOption(
-                        icon: Icons.message,
-                        label: 'WhatsApp',
-                        color: Colors.green,
-                        onTap: () => _shareToWhatsApp(billDetails),
-                      ),
-                      _buildShareOption(
-                        icon: Icons.sms,
-                        label: 'SMS',
-                        color: Colors.blue,
-                        onTap: () => _shareToSMS(billDetails),
-                      ),
-                      _buildShareOption(
-                        icon: Icons.email,
-                        label: 'Email',
-                        color: Colors.red,
-                        onTap: () => _shareToEmail(billDetails),
-                      ),
-                      _buildShareOption(
-                        icon: Icons.more_horiz,
-                        label: 'More',
-                        color: Colors.grey,
-                        onTap: () => _shareToSystem(billDetails),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildShareOption({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.pop(context);
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: color,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _shareToWhatsApp(String fallbackText) async {
-    if (_bill == null) return;
-
-    // Create detailed bill text in the same format as BillPreviewScreen
-    final billNumber = _bill!.billNumber;
-    final customerName = _bill!.customerName ?? 'Walk-in Customer';
-    final customerShop = _bill!.customerShop ?? '';
-    final customerMobile = _bill!.customerMobile ?? '';
-    final total = _bill!.total;
-    final subtotal = _bill!.subtotal;
-    final discount = _bill!.discount;
-    final collectedAmount = _bill!.collectedAmount;
-    final creditAmount = _bill!.creditAmount;
-    final billedBy = _bill!.billedByName ?? 'Unknown';
-    final items = _bill!.items;
-    final dateStr = _bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A';
-
-    // Build formatted receipt text
-    StringBuffer receipt = StringBuffer();
-
-    // Header
-    receipt.writeln('                   STAR CHIPS                   ');
-    receipt.writeln('                 --- Receipt ---                ');
-    receipt.writeln();
-
-    // Bill info row
-    receipt.writeln('Bill No: ${billNumber.toString().padLeft(28)}');
-    receipt.writeln('Date: ${dateStr.padLeft(30)}');
-    receipt.writeln();
-
-    // Customer info
-    receipt.writeln('Customer:');
-    receipt.writeln(customerName);
-    if (customerShop.isNotEmpty) {
-      receipt.writeln(customerShop);
-    }
-    if (customerMobile.isNotEmpty) {
-      receipt.writeln(customerMobile);
-    }
-    receipt.writeln();
-
-    // Separator line
-    receipt.writeln('----------------------------------------');
-
-    // Items header - aligned columns (Item, Price, Qty, Amount)
-    receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
-
-    // Items
-    for (var item in items) {
-      final name = item.productName ?? 'Unknown';
-      final qty = item.quantity;
-      final itemTotal = item.lineTotal;
-      final unitPrice = qty > 0 ? itemTotal / qty : 0;
-
-      // Truncate name if too long
-      String displayName = name.length > 11 ? '${name.substring(0, 10)}..' : name;
-
-      receipt.writeln(
-        '${displayName.padRight(12)} '
-        '${'₹${unitPrice.toStringAsFixed(1)}'.padLeft(10)} '
-        '${'$qty kg'.padLeft(8)} '
-        '${'₹${itemTotal.toStringAsFixed(2)}'.padLeft(10)}'
-      );
-    }
-
-    receipt.writeln('----------------------------------------');
-    receipt.writeln();
-
-    // Totals section - right aligned
-    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
-
-    if (discount > 0) {
-      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
-    }
-
-    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
-    receipt.writeln();
-    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
-
-    if (creditAmount > 0) {
-      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
-    }
-
-    receipt.writeln();
-    receipt.writeln('----------------------------------------');
-    receipt.writeln();
-    receipt.writeln('Billed by: $billedBy');
-    receipt.writeln();
-    receipt.writeln('    Thank you for your business!');
-    receipt.writeln('         Visit again!');
-
-    final billDetails = receipt.toString();
-
-    // Always use generic WhatsApp URL (forward-based, no customer number)
-    final whatsappUrl = 'https://wa.me/?text=${Uri.encodeComponent(billDetails)}';
-    final uri = Uri.parse(whatsappUrl);
-
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WhatsApp not available')),
-        );
+    // Customer table balance - try print data first, then fetch customer directly
+    var customerCreditBalance = (printData['customer']?['credit_balance'] ?? 0).toDouble();
+    var customerExtraAmount = (printData['customer']?['extra_amount'] ?? 0).toDouble();
+    
+    // If values are 0, fetch customer directly to get actual table values
+    if ((customerCreditBalance == 0 && customerExtraAmount == 0) && printData['customer']?['id'] != null) {
+      final customerId = printData['customer']['id'];
+      final customerData = await context.read<CustomerProvider>().getCustomer(customerId);
+      if (customerData != null) {
+        customerCreditBalance = (customerData['credit_balance'] ?? 0).toDouble();
+        customerExtraAmount = (customerData['extra_amount'] ?? 0).toDouble();
       }
     }
-  }
 
-  Future<void> _shareToSMS(String text) async {
-    final smsUrl = 'sms:?body=${Uri.encodeComponent(text)}';
-    final uri = Uri.parse(smsUrl);
-    
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SMS not available')),
+    // Build formatted receipt text
+    StringBuffer receipt = StringBuffer();
+
+    // Header
+    receipt.writeln('                   STAR CHIPS                   ');
+    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln();
+
+    // Bill info row
+    receipt.writeln('Bill No: ${billNumber.toString().padLeft(28)}');
+    receipt.writeln('Date: ${dateStr.padLeft(30)}');
+    receipt.writeln();
+
+    // Customer info
+    receipt.writeln('Customer:');
+    receipt.writeln(customerName);
+    if (customerShop.isNotEmpty) {
+      receipt.writeln(customerShop);
+    }
+    if (customerMobile.isNotEmpty) {
+      receipt.writeln(customerMobile);
+    }
+    // Show customer table balance if exists
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      receipt.writeln();
+      if (customerCreditBalance > 0) {
+        receipt.writeln('${'Customer Credit Bal:'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
+      }
+      if (customerExtraAmount > 0) {
+        receipt.writeln('${'Customer Extra Amt:'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
+      }
+    }
+    receipt.writeln();
+
+    // Separator line
+    receipt.writeln('--------------------------------');
+
+    // Items header - aligned columns (Item, Price, Qty, Amount)
+    receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
+
+    // Items
+    for (var item in items) {
+      final name = item['product']?['name'] ?? item['product_name'] ?? 'Unknown';
+      final qty = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+      final itemTotal = double.tryParse(item['total']?.toString() ?? '0') ?? 0;
+      final unitPrice = qty > 0 ? itemTotal / qty : 0;
+
+      // Truncate name if too long
+      String displayName = name.length > 11 ? '${name.substring(0, 10)}..' : name;
+
+      receipt.writeln(
+        '${displayName.padRight(12)} '
+        '${'₹${unitPrice.toStringAsFixed(1)}'.padLeft(10)} '
+        '${'$qty kg'.padLeft(8)} '
+        '${'₹${itemTotal.toStringAsFixed(2)}'.padLeft(10)}'
       );
     }
-  }
 
-  Future<void> _shareToEmail(String text) async {
-    final emailUrl = 'mailto:?subject=Bill Details&body=${Uri.encodeComponent(text)}';
-    final uri = Uri.parse(emailUrl);
-    
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email not available')),
-      );
-    }
-  }
+    receipt.writeln('--------------------------------');
+    receipt.writeln();
 
-  Future<void> _shareToSystem(String text) async {
-    try {
-      await Share.share(text, subject: 'Bill Details');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sharing: $e')),
-      );
+    // Totals section - right aligned
+    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
+
+    if (discount > 0) {
+      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
     }
+
+    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
+    receipt.writeln();
+    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    if (creditAmount > 0) {
+      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    }
+
+    receipt.writeln();
+    receipt.writeln('--------------------------------');
+    receipt.writeln();
+    receipt.writeln('Billed by: $billedBy');
+    receipt.writeln();
+    receipt.writeln('    Thank you for your business!');
+    receipt.writeln('         Visit again!');
+
+    await Share.share(receipt.toString(), subject: 'Bill Receipt - $billNumber');
   }
 
   Future<void> _printBill() async {
@@ -737,6 +506,39 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     bytes += generator.text(
       'Customer: ${_bill!.customerName ?? 'Walk-in'}',
     );
+    
+    // Fetch customer credit/extra - try print data first, then fetch customer directly
+    final printData = await context.read<BillProvider>().getPrintData(widget.billId);
+    var customerCreditBalance = (printData?['customer']?['credit_balance'] ?? 0).toDouble();
+    var customerExtraAmount = (printData?['customer']?['extra_amount'] ?? 0).toDouble();
+    
+    // If values are 0, fetch customer directly to get actual table values
+    if ((customerCreditBalance == 0 && customerExtraAmount == 0) && printData?['customer']?['id'] != null) {
+      final customerId = printData!['customer']['id'];
+      final customerData = await context.read<CustomerProvider>().getCustomer(customerId);
+      if (customerData != null) {
+        customerCreditBalance = (customerData['credit_balance'] ?? 0).toDouble();
+        customerExtraAmount = (customerData['extra_amount'] ?? 0).toDouble();
+      }
+    }
+    
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      bytes += generator.hr(ch: '-');
+      if (customerCreditBalance > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Cust Credit Bal:', width: 8, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: _currency.format(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+      if (customerExtraAmount > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Cust Extra Amt:', width: 8, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: _currency.format(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+    }
 
     bytes += generator.hr();
 
@@ -1225,6 +1027,20 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     final printData = await context.read<BillProvider>().getPrintData(widget.billId);
     if (printData == null || !mounted) return;
 
+    // Get customer credit/extra - try print data first, then fetch customer directly
+    var customerCreditBalance = (printData['customer']?['credit_balance'] ?? 0).toDouble();
+    var customerExtraAmount = (printData['customer']?['extra_amount'] ?? 0).toDouble();
+    
+    // If values are 0, fetch customer directly to get actual table values
+    if ((customerCreditBalance == 0 && customerExtraAmount == 0) && printData['customer']?['id'] != null) {
+      final customerId = printData['customer']['id'];
+      final customerData = await context.read<CustomerProvider>().getCustomer(customerId);
+      if (customerData != null) {
+        customerCreditBalance = (customerData['credit_balance'] ?? 0).toDouble();
+        customerExtraAmount = (customerData['extra_amount'] ?? 0).toDouble();
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1318,6 +1134,14 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                               Text(printData['customer']['shop_name']),
                             if (printData['customer']['mobile'] != null)
                               Text(printData['customer']['mobile']),
+                            // Show customer table balance if exists
+                            if (customerCreditBalance > 0 || customerExtraAmount > 0) ...[
+                              const SizedBox(height: 4),
+                              if (customerCreditBalance > 0)
+                                _PrintTotalRow('Customer Credit Bal', customerCreditBalance),
+                              if (customerExtraAmount > 0)
+                                _PrintTotalRow('Customer Extra Amt', customerExtraAmount),
+                            ],
                           ],
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                           Row(
