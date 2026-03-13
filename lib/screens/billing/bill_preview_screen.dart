@@ -548,62 +548,99 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final billing = context.read<BillingProvider>();
     final preview = billing.previewData;
     if (preview == null) return;
-    
-    // Create bill details text for sharing
+
+    // Create bill details text for sharing with proper formatting
     final billNumber = preview['bill_number'] ?? 'Preview';
     final customerName = preview['customer']?['name'] ?? 'Walk-in Customer';
+    final customerShop = preview['customer']?['shop_name'] ?? '';
+    final customerMobile = preview['customer']?['mobile'] ?? '';
     final total = double.tryParse(preview['total']?.toString() ?? '0') ?? 0;
     final subtotal = double.tryParse(preview['subtotal']?.toString() ?? '0') ?? 0;
     final discount = double.tryParse(preview['discount']?.toString() ?? '0') ?? 0;
-    final previousCredit = double.tryParse(preview['previous_credit']?.toString() ?? '0') ?? 0;
-    final extraAmount = double.tryParse(preview['extra_amount']?.toString() ?? '0') ?? 0;
-    // Try to get billed by from preview data, otherwise use current user
-    final billedBy = preview['billed_by']?['name'] ?? 
-                     preview['billed_by_name'] ?? 
-                     context.read<AuthProvider>().user?.name ?? 
+    final collectedAmount = double.tryParse(preview['collected_amount']?.toString() ?? '0') ?? 0;
+    final creditAmount = double.tryParse(preview['credit_amount']?.toString() ?? '0') ?? 0;
+    final billedBy = preview['billed_by']?['name'] ??
+                     preview['billed_by_name'] ??
+                     context.read<AuthProvider>().user?.name ??
                      'Unknown';
     final items = preview['items'] as List? ?? [];
-    
-    String billDetails = '🧾 BILL PREVIEW\n';
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Bill No: $billNumber\n';
-    billDetails += 'Customer: $customerName\n';
-    if (preview['customer']?['mobile'] != null) {
-      billDetails += 'Mobile: ${preview['customer']['mobile']}\n';
+    final dateStr = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
+
+    // Build formatted receipt text
+    StringBuffer receipt = StringBuffer();
+
+    // Header
+    receipt.writeln('                   STAR CHIPS                   ');
+    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln();
+
+    // Bill info row
+    receipt.writeln('Bill No: ${billNumber.toString().padLeft(28)}');
+    receipt.writeln('Date: ${dateStr.padLeft(30)}');
+    receipt.writeln();
+
+    // Customer info
+    receipt.writeln('Customer:');
+    receipt.writeln(customerName);
+    if (customerShop.isNotEmpty) {
+      receipt.writeln(customerShop);
     }
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    
+    if (customerMobile.isNotEmpty) {
+      receipt.writeln(customerMobile);
+    }
+    receipt.writeln();
+
+    // Separator line
+    receipt.writeln('----------------------------------------------');
+
+    // Items header - aligned columns (Item, Price, Qty, Amount)
+    receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
+
     // Items
     for (var item in items) {
       final name = item['product']?['name'] ?? item['product_name'] ?? 'Unknown';
-      final qty = item['quantity'] ?? 1;
-      final itemTotal = item['total'] ?? 0;
-      // Get unit price from item data
-      final unitPrice = item['unit_price'] ?? item['price'] ?? 0;
-      billDetails += '$name - ₹${unitPrice.toStringAsFixed(2)} x $qty kg = ₹${itemTotal.toStringAsFixed(2)}\n';
+      final qty = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1;
+      final itemTotal = double.tryParse(item['total']?.toString() ?? '0') ?? 0;
+      final unitPrice = qty > 0 ? itemTotal / qty : 0;
+
+      // Truncate name if too long
+      String displayName = name.length > 11 ? '${name.substring(0, 10)}..' : name;
+
+      receipt.writeln(
+        '${displayName.padRight(12)} '
+        '${'₹${unitPrice.toStringAsFixed(1)}'.padLeft(10)} '
+        '${'$qty kg'.padLeft(8)} '
+        '${'₹${itemTotal.toStringAsFixed(2)}'.padLeft(10)}'
+      );
     }
-    
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Subtotal: ₹${subtotal.toStringAsFixed(2)}\n';
+
+    receipt.writeln('----------------------------------------------');
+    receipt.writeln();
+
+    // Totals section - right aligned
+    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
+
     if (discount > 0) {
-      billDetails += 'Discount: -₹${discount.toStringAsFixed(2)}\n';
+      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
     }
-    if (previousCredit > 0) {
-      billDetails += 'Previous Credit: ₹${previousCredit.toStringAsFixed(2)}\n';
+
+    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
+    receipt.writeln();
+    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    if (creditAmount > 0) {
+      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
     }
-    if (extraAmount > 0) {
-      billDetails += 'Extra Amount: ₹${extraAmount.toStringAsFixed(2)}\n';
-    }
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Total: ₹${total.toStringAsFixed(2)}\n';
-    billDetails += 'Collected: ₹${(preview['collected_amount'] ?? 0).toStringAsFixed(2)}\n';
-    if ((preview['credit_amount'] ?? 0) > 0)
-      billDetails += 'Credit: ₹${(preview['credit_amount'] ?? 0).toStringAsFixed(2)}\n';
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Billed by: $billedBy\n';
-    billDetails += 'Generated on ${DateTime.now().toString().split('.')[0]}';
-    
-    await Share.share(billDetails, subject: 'Bill Preview - $billNumber');
+
+    receipt.writeln();
+    receipt.writeln('----------------------------------------------');
+    receipt.writeln();
+    receipt.writeln('Billed by: $billedBy');
+    receipt.writeln();
+    receipt.writeln('    Thank you for your business!');
+    receipt.writeln('         Visit again!');
+
+    await Share.share(receipt.toString(), subject: 'Bill Receipt - $billNumber');
   }
 
   Future<void> _printBill() async {

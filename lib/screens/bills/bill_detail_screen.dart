@@ -78,26 +78,96 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
   Future<void> _shareBill() async {
     if (_bill == null) return;
-    
-    // Create bill details text for sharing
-    final billDetails = '''
-Bill Details
-=============
-Bill Number: ${_bill!.billNumber}
-Date: ${_bill!.createdAt != null ? DateFormat('dd MMM yyyy').format(_bill!.createdAt!) : 'N/A'}
-Customer: ${_bill!.customerName ?? 'N/A'}
 
-Items:
-${_bill!.items.map((item) => '${item.quantity}x ${item.productName ?? 'Product'} - ${_currency.format(item.lineTotal)}').join('\n')}
+    // Create bill details text for sharing with proper formatting
+    final billNumber = _bill!.billNumber;
+    final customerName = _bill!.customerName ?? 'Walk-in Customer';
+    final customerShop = _bill!.customerShop ?? '';
+    final customerMobile = _bill!.customerMobile ?? '';
+    final total = _bill!.total;
+    final subtotal = _bill!.subtotal;
+    final discount = _bill!.discount;
+    final collectedAmount = _bill!.collectedAmount;
+    final creditAmount = _bill!.creditAmount;
+    final billedBy = _bill!.billedByName ?? 'Unknown';
+    final items = _bill!.items;
+    final dateStr = _bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A';
 
-Subtotal: ${_currency.format(_bill!.subtotal)}
-Discount: ${_currency.format(_bill!.discount)}
-Total: ${_currency.format(_bill!.total)}
-Collected: ${_currency.format(_bill!.collectedAmount)}
-${_bill!.creditAmount > 0 ? 'Credit: ${_currency.format(_bill!.creditAmount)}' : ''}
+    // Build formatted receipt text
+    StringBuffer receipt = StringBuffer();
 
-Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
-''';
+    // Header
+    receipt.writeln('                   STAR CHIPS                   ');
+    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln();
+
+    // Bill info row
+    receipt.writeln('Bill No: ${billNumber.toString().padLeft(28)}');
+    receipt.writeln('Date: ${dateStr.padLeft(30)}');
+    receipt.writeln();
+
+    // Customer info
+    receipt.writeln('Customer:');
+    receipt.writeln(customerName);
+    if (customerShop.isNotEmpty) {
+      receipt.writeln(customerShop);
+    }
+    if (customerMobile.isNotEmpty) {
+      receipt.writeln(customerMobile);
+    }
+    receipt.writeln();
+
+    // Separator line
+    receipt.writeln('----------------------------------------');
+
+    // Items header - aligned columns (Item, Price, Qty, Amount)
+    receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
+
+    // Items
+    for (var item in items) {
+      final name = item.productName ?? 'Unknown';
+      final qty = item.quantity;
+      final itemTotal = item.lineTotal;
+      final unitPrice = qty > 0 ? itemTotal / qty : 0;
+
+      // Truncate name if too long
+      String displayName = name.length > 11 ? '${name.substring(0, 10)}..' : name;
+
+      receipt.writeln(
+        '${displayName.padRight(12)} '
+        '${'₹${unitPrice.toStringAsFixed(1)}'.padLeft(10)} '
+        '${'$qty kg'.padLeft(8)} '
+        '${'₹${itemTotal.toStringAsFixed(2)}'.padLeft(10)}'
+      );
+    }
+
+    receipt.writeln('----------------------------------------');
+    receipt.writeln();
+
+    // Totals section - right aligned
+    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
+
+    if (discount > 0) {
+      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
+    }
+
+    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
+    receipt.writeln();
+    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    if (creditAmount > 0) {
+      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    }
+
+    receipt.writeln();
+    receipt.writeln('----------------------------------------');
+    receipt.writeln();
+    receipt.writeln('Billed by: $billedBy');
+    receipt.writeln();
+    receipt.writeln('    Thank you for your business!');
+    receipt.writeln('         Visit again!');
+
+    final billDetails = receipt.toString();
 
     // Show share options dialog
     showModalBottomSheet(
@@ -217,48 +287,99 @@ Notes: ${_bill!.notes?.isNotEmpty == true ? _bill!.notes : 'N/A'}
     if (_bill == null) return;
 
     // Create detailed bill text in the same format as BillPreviewScreen
-    String billDetails = '🧾 BILL DETAILS\n';
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Bill No: ${_bill!.billNumber}\n';
-    billDetails += 'Customer: ${_bill!.customerName ?? 'Walk-in Customer'}\n';
-    if (_bill!.customerMobile != null) {
-      billDetails += 'Mobile: ${_bill!.customerMobile}\n';
+    final billNumber = _bill!.billNumber;
+    final customerName = _bill!.customerName ?? 'Walk-in Customer';
+    final customerShop = _bill!.customerShop ?? '';
+    final customerMobile = _bill!.customerMobile ?? '';
+    final total = _bill!.total;
+    final subtotal = _bill!.subtotal;
+    final discount = _bill!.discount;
+    final collectedAmount = _bill!.collectedAmount;
+    final creditAmount = _bill!.creditAmount;
+    final billedBy = _bill!.billedByName ?? 'Unknown';
+    final items = _bill!.items;
+    final dateStr = _bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A';
+
+    // Build formatted receipt text
+    StringBuffer receipt = StringBuffer();
+
+    // Header
+    receipt.writeln('                   STAR CHIPS                   ');
+    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln();
+
+    // Bill info row
+    receipt.writeln('Bill No: ${billNumber.toString().padLeft(28)}');
+    receipt.writeln('Date: ${dateStr.padLeft(30)}');
+    receipt.writeln();
+
+    // Customer info
+    receipt.writeln('Customer:');
+    receipt.writeln(customerName);
+    if (customerShop.isNotEmpty) {
+      receipt.writeln(customerShop);
     }
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    
-    // Items with unit price
-    for (var item in _bill!.items) {
+    if (customerMobile.isNotEmpty) {
+      receipt.writeln(customerMobile);
+    }
+    receipt.writeln();
+
+    // Separator line
+    receipt.writeln('----------------------------------------');
+
+    // Items header - aligned columns (Item, Price, Qty, Amount)
+    receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
+
+    // Items
+    for (var item in items) {
       final name = item.productName ?? 'Unknown';
       final qty = item.quantity;
-      final itemTotal = item.total;
+      final itemTotal = item.lineTotal;
       final unitPrice = qty > 0 ? itemTotal / qty : 0;
-      billDetails += '$name - ₹${unitPrice.toStringAsFixed(2)} x ${qty} kg = ₹${itemTotal.toStringAsFixed(2)}\n';
+
+      // Truncate name if too long
+      String displayName = name.length > 11 ? '${name.substring(0, 10)}..' : name;
+
+      receipt.writeln(
+        '${displayName.padRight(12)} '
+        '${'₹${unitPrice.toStringAsFixed(1)}'.padLeft(10)} '
+        '${'$qty kg'.padLeft(8)} '
+        '${'₹${itemTotal.toStringAsFixed(2)}'.padLeft(10)}'
+      );
     }
-    
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Subtotal: ₹${_bill!.subtotal.toStringAsFixed(2)}\n';
-    if (_bill!.discount > 0) {
-      billDetails += 'Discount: -₹${_bill!.discount.toStringAsFixed(2)}\n';
+
+    receipt.writeln('----------------------------------------');
+    receipt.writeln();
+
+    // Totals section - right aligned
+    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
+
+    if (discount > 0) {
+      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
     }
-    if (_bill!.previousCredit > 0) {
-      billDetails += 'Previous Credit: ₹${_bill!.previousCredit.toStringAsFixed(2)}\n';
+
+    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
+    receipt.writeln();
+    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    if (creditAmount > 0) {
+      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
     }
-    if (_bill!.customerExtraAmount > 0) {
-      billDetails += 'Extra Amount: ₹${_bill!.customerExtraAmount.toStringAsFixed(2)}\n';
-    }
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Total: ₹${_bill!.total.toStringAsFixed(2)}\n';
-    billDetails += 'Collected: ₹${_bill!.collectedAmount.toStringAsFixed(2)}\n';
-    if (_bill!.creditAmount > 0)
-      billDetails += 'Credit: ₹${_bill!.creditAmount.toStringAsFixed(2)}\n';
-    billDetails += '━━━━━━━━━━━━━━━━━━━━\n';
-    billDetails += 'Billed by: ${_bill!.billedByName ?? 'Unknown'}\n';
-    billDetails += 'Generated on ${_bill!.date}';
-    
+
+    receipt.writeln();
+    receipt.writeln('----------------------------------------');
+    receipt.writeln();
+    receipt.writeln('Billed by: $billedBy');
+    receipt.writeln();
+    receipt.writeln('    Thank you for your business!');
+    receipt.writeln('         Visit again!');
+
+    final billDetails = receipt.toString();
+
     // Always use generic WhatsApp URL (forward-based, no customer number)
     final whatsappUrl = 'https://wa.me/?text=${Uri.encodeComponent(billDetails)}';
     final uri = Uri.parse(whatsappUrl);
-    
+
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
