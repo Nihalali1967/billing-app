@@ -65,12 +65,8 @@ class _UserFormScreenState extends State<UserFormScreen> {
       data['password'] = _passwordCtrl.text;
       data['password_confirmation'] = _confirmCtrl.text;
     } else {
-      if (_usernameCtrl.text.trim() != widget.user!.username) {
-        data['username'] = _usernameCtrl.text.trim();
-      }
-      if (_mobileCtrl.text.trim() != widget.user!.mobile) {
-        data['mobile'] = _mobileCtrl.text.trim();
-      }
+      data['username'] = _usernameCtrl.text.trim();
+      data['mobile'] = _mobileCtrl.text.trim();
       data['is_active'] = _isActive;
       if (_passwordCtrl.text.isNotEmpty) {
         data['password'] = _passwordCtrl.text;

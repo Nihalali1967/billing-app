@@ -65,7 +65,7 @@ class CustomerProvider with ChangeNotifier {
 
   Future<bool> update(int id, Map<String, dynamic> data) async {
     try {
-      await ApiService.put('/customers/$id', body: data);
+      await ApiService.post('/customers/$id', body: data);
       await fetch();
       return true;
     } catch (e) {
