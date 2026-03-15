@@ -128,9 +128,6 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     if (customerShop.isNotEmpty) {
       receipt.writeln(customerShop);
     }
-    if (customerMobile.isNotEmpty) {
-      receipt.writeln(customerMobile);
-    }
     // Show customer table balance if exists
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
       receipt.writeln();
@@ -170,19 +167,44 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     receipt.writeln('--------------------------------');
     receipt.writeln();
 
-    // Totals section - right aligned
-    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
+    // 1. TOTAL first
+    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
+    receipt.writeln();
 
+    // 2. Collected
+    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    // 3. Credit
+    if (creditAmount > 0) {
+      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    }
+
+    // 4. Discount if any
     if (discount > 0) {
       receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
     }
 
-    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
-    receipt.writeln();
-    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
-
-    if (creditAmount > 0) {
-      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    // 5. Credit Balance / Extra Amount (OB)
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      receipt.writeln('--------------------------------');
+      if (customerCreditBalance > 0) {
+        receipt.writeln('${'Credit Balance (OB)'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
+      }
+      if (customerExtraAmount > 0) {
+        receipt.writeln('${'Extra Amount (OB)'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
+      }
+      
+      // 6. Totals
+      // if (creditAmount > 0) {
+      //   if (customerCreditBalance > 0) {
+      //     final totalCredit = customerCreditBalance + creditAmount;
+      //     receipt.writeln('${'  Total Credit'.padRight(30)} ${_currency.format(totalCredit).padLeft(10)}');
+      //   }
+      //   if (customerExtraAmount > 0) {
+      //     final totalExtra = customerExtraAmount - creditAmount;
+      //     receipt.writeln('${'  Total Extra Balance'.padRight(30)} ${_currency.format(totalExtra).padLeft(10)}');
+      //   }
+      // }
     }
 
     receipt.writeln();
@@ -479,11 +501,16 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     final profile = await CapabilityProfile.load(name: 'default');
     final generator = Generator(PaperSize.mm58, profile);
 
+    // Helper to format currency for printer (uses Rs. instead of ₹)
+    String formatPrintCurrency(double amount) {
+      return 'Rs.${amount.toStringAsFixed(2)}';
+    }
+
     List<int> bytes = [];
 
     // Header
     bytes += generator.text(
-      'BILL RECEIPT',
+      'STAR CHIPS BILL RECEIPT',
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,
@@ -506,6 +533,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     bytes += generator.text(
       'Customer: ${_bill!.customerName ?? 'Walk-in'}',
     );
+    if (_bill!.customerShop != null && _bill!.customerShop!.isNotEmpty) {
+      bytes += generator.text(
+        'Shop: ${_bill!.customerShop}',
+      );
+    }
     
     // Fetch customer credit/extra - try print data first, then fetch customer directly
     final printData = await context.read<BillProvider>().getPrintData(widget.billId);
@@ -522,31 +554,14 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       }
     }
     
-    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
-      bytes += generator.hr(ch: '-');
-      if (customerCreditBalance > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'Cust Credit Bal:', width: 8, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: _currency.format(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
-      }
-      if (customerExtraAmount > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'Cust Extra Amt:', width: 8, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: _currency.format(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
-      }
-    }
-
-    bytes += generator.hr();
+bytes += generator.hr();
 
     // Items header
     bytes += generator.row([
-      PosColumn(text: 'Item', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'Item', width: 4, styles: const PosStyles(bold: true)),
       PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center)),
-      PosColumn(text: 'Price', width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Price', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
 
     bytes += generator.hr(ch: '-');
@@ -555,53 +570,68 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     for (final item in _bill!.items) {
       final name = item.productName ?? 'Product';
       final qty = item.quantity.toStringAsFixed(item.quantity == item.quantity.toInt() ? 0 : 2);
-      final total = _currency.format(item.lineTotal);
+      final unitPrice = (item.quantity > 0 ? item.lineTotal / item.quantity : 0).toDouble();
+      final total = formatPrintCurrency(item.lineTotal);
 
       bytes += generator.row([
-        PosColumn(text: name, width: 6),
+        PosColumn(text: name, width: 4),
         PosColumn(text: qty, width: 2, styles: const PosStyles(align: PosAlign.center)),
-        PosColumn(text: total, width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: formatPrintCurrency(unitPrice), width: 3, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: total, width: 3, styles: const PosStyles(align: PosAlign.right)),
       ]);
     }
 
     bytes += generator.hr();
 
-    // Totals
+    // 1. TOTAL first
     bytes += generator.row([
-      PosColumn(text: 'Subtotal', width: 6),
+      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: '', width: 2),
-      PosColumn(text: _currency.format(_bill!.subtotal), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(_bill!.total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
+
+    // 2. Collected
+    bytes += generator.hr(ch: '-');
+    bytes += generator.row([
+      PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: '', width: 2),
+      PosColumn(text: formatPrintCurrency(_bill!.collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+
+    // 3. Credit amount
+    if (_bill!.creditAmount > 0) {
+      bytes += generator.row([
+        PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
+        PosColumn(text: '', width: 2),
+        PosColumn(text: formatPrintCurrency(_bill!.creditAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+    }
 
     if (_bill!.discount > 0) {
       bytes += generator.row([
         PosColumn(text: 'Discount', width: 6),
         PosColumn(text: '', width: 2),
-        PosColumn(text: '-${_currency.format(_bill!.discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: '-${formatPrintCurrency(_bill!.discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
     }
 
-    bytes += generator.row([
-      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
-      PosColumn(text: '', width: 2),
-      PosColumn(text: _currency.format(_bill!.total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-
-    bytes += generator.hr(ch: '-');
-
-    // Payment details
-    bytes += generator.row([
-      PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
-      PosColumn(text: '', width: 2),
-      PosColumn(text: _currency.format(_bill!.collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-    ]);
-
-    if (_bill!.creditAmount > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: '', width: 2),
-        PosColumn(text: _currency.format(_bill!.creditAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
+    // 4. Customer table balance (OB) after credit
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      bytes += generator.hr(ch: '-');
+      if (customerCreditBalance > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Credit Balance (OB)', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+      if (customerExtraAmount > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Extra Amount (OB)', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
     }
 
     bytes += generator.hr();
@@ -1132,9 +1162,6 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                             Text(printData['customer']['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                             if (printData['customer']['shop_name'] != null)
                               Text(printData['customer']['shop_name']),
-                            if (printData['customer']['mobile'] != null)
-                              Text(printData['customer']['mobile']),
-                            // Show customer table balance if exists
                             if (customerCreditBalance > 0 || customerExtraAmount > 0) ...[
                               const SizedBox(height: 4),
                               if (customerCreditBalance > 0)
@@ -1211,24 +1238,25 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                               style: TextStyle(color: Colors.grey),
                             ),
                           ),
-                          _PrintTotalRow(
-                            'Subtotal',
-                            (printData['subtotal'] ?? 0).toDouble(),
-                          ),
-                          if ((printData['discount'] ?? 0) > 0)
-                            _PrintTotalRow(
-                              'Discount',
-                              (printData['discount'] ?? 0).toDouble(),
-                            ),
-                          _PrintTotalRow(
-                            'Total',
-                            (printData['total'] ?? 0).toDouble(),
-                            isBold: true,
-                          ),
-                          const SizedBox(height: 8),
+                          // 1. TOTAL first
+                          _PrintTotalRow('Total', (printData['total'] ?? 0).toDouble(), isBold: true),
+                          const SizedBox(height: 4),
+                          // 2. Collected
                           _PrintTotalRow('Collected', (printData['collected_amount'] ?? 0).toDouble()),
+                          // 3. Credit
                           if ((printData['credit_amount'] ?? 0) > 0)
                             _PrintTotalRow('Credit', (printData['credit_amount'] ?? 0).toDouble(), isBold: true),
+                          // 4. Discount if any
+                          if ((printData['discount'] ?? 0) > 0)
+                            _PrintTotalRow('Discount', (printData['discount'] ?? 0).toDouble()),
+                          // 5. Credit Balance / Extra Amount (OB)
+                          if (customerCreditBalance > 0 || customerExtraAmount > 0) ...[
+                            const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
+                            if (customerCreditBalance > 0)
+                              _PrintTotalRow('Credit Balance (OB)', customerCreditBalance),
+                            if (customerExtraAmount > 0)
+                              _PrintTotalRow('Extra Amount (OB)', customerExtraAmount),
+                          ],
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                           Text('Billed by: ${printData['billed_by']?['name'] ?? printData['billed_by_name'] ?? printData['billed_by'] ?? 'Unknown'}', style: const TextStyle(fontSize: 11)),
                           const SizedBox(height: 16),

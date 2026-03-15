@@ -585,9 +585,6 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     if (customerShop.isNotEmpty) {
       receipt.writeln(customerShop);
     }
-    if (customerMobile.isNotEmpty) {
-      receipt.writeln(customerMobile);
-    }
     // Show customer table balance - use provider values (from customer table)
     var customerCreditBalance = billing.customerCreditBalance;
     var customerExtraAmount = billing.customerExtraAmount;
@@ -669,8 +666,58 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final preview = billing.previewData;
     if (preview == null) return;
 
-    // Show print preview first
-    await _showPrintPreview();
+    try {
+      // Check Bluetooth enabled
+      final bool isEnabled = await PrintBluetoothThermal.bluetoothEnabled;
+      if (!isEnabled) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.bluetooth_disabled, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Please enable Bluetooth to print'),
+              ],
+            ),
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
+      // Check Bluetooth permissions
+      final bool permGranted = await PrintBluetoothThermal.isPermissionBluetoothGranted;
+      if (!permGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.security, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(child: Text('Bluetooth permission required. Please grant in Settings.')),
+              ],
+            ),
+            backgroundColor: Colors.orange[700],
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+
+      // Show printer selection directly (same as bill_detail_screen.dart)
+      await _showPrinterSelectionDialog();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Print error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _showPrintPreview() async {
@@ -786,8 +833,6 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                             Text(printData['customer']['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                             if (printData['customer']['shop_name'] != null)
                               Text(printData['customer']['shop_name']),
-                            if (printData['customer']['mobile'] != null)
-                              Text(printData['customer']['mobile']),
                             // Show customer table balance if exists
                             Builder(builder: (ctx) {
                               final billing = ctx.read<BillingProvider>();
@@ -1175,11 +1220,16 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final profile = await CapabilityProfile.load(name: 'default');
     final generator = Generator(PaperSize.mm58, profile);
     
+    // Helper to format currency for printer (uses Rs. instead of ₹)
+    String formatPrintCurrency(double amount) {
+      return 'Rs.${amount.toStringAsFixed(2)}';
+    }
+    
     List<int> bytes = [];
     
     // Header
     bytes += generator.text(
-      'BILL PREVIEW',
+      'STAR CHIPS BILL RECEIPT',
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,
@@ -1206,7 +1256,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       customerExtraAmount = double.tryParse(preview['customer']?['extra_amount']?.toString() ?? '0') ?? 0;
     }
     
-    bytes += generator.text('Bill No: $billNumber', styles: PosStyles(bold: true));
+    bytes += generator.text('Bill No: $billNumber', styles: const PosStyles(bold: true));
     bytes += generator.text('Customer: $customerName');
     if (customerMobile.isNotEmpty) {
       bytes += generator.text('Mobile: $customerMobile');
@@ -1218,14 +1268,16 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       bytes += generator.hr(ch: '-');
       if (customerCreditBalance > 0) {
         bytes += generator.row([
-          PosColumn(text: 'Cust Credit Bal:', width: 8),
-          PosColumn(text: _currency.format(customerCreditBalance), width: 4, styles: PosStyles(align: PosAlign.right)),
+          PosColumn(text: 'Cust Credit Bal:', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
         ]);
       }
       if (customerExtraAmount > 0) {
         bytes += generator.row([
-          PosColumn(text: 'Cust Extra Amt:', width: 8),
-          PosColumn(text: _currency.format(customerExtraAmount), width: 4, styles: PosStyles(align: PosAlign.right)),
+          PosColumn(text: 'Cust Extra Amt:', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
         ]);
       }
     }
@@ -1234,9 +1286,10 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     
     // Items header
     bytes += generator.row([
-      PosColumn(text: 'Item', width: 6, styles: PosStyles(bold: true)),
-      PosColumn(text: 'Qty', width: 2, styles: PosStyles(bold: true, align: PosAlign.center)),
-      PosColumn(text: 'Total', width: 4, styles: PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Item', width: 4, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'Qty', width: 2, styles: const PosStyles(bold: true, align: PosAlign.center)),
+      PosColumn(text: 'Price', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: 'Total', width: 3, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
     
     bytes += generator.hr(ch: '-');
@@ -1245,13 +1298,15 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final items = preview['items'] as List? ?? [];
     for (var item in items) {
       final name = item['product']?['name'] ?? item['product_name'] ?? 'Unknown';
-      final qty = item['quantity'] ?? 1;
-      final itemTotal = item['total'] ?? 0;
+      final qty = (item['quantity'] ?? 1).toDouble();
+      final itemTotal = (item['total'] ?? 0).toDouble();
+      final unitPrice = qty > 0 ? itemTotal / qty : 0;
       
       bytes += generator.row([
-        PosColumn(text: name, width: 6),
-        PosColumn(text: qty.toString(), width: 2, styles: PosStyles(align: PosAlign.center)),
-        PosColumn(text: _currency.format(itemTotal), width: 4, styles: PosStyles(align: PosAlign.right)),
+        PosColumn(text: name, width: 4),
+        PosColumn(text: qty.toStringAsFixed(qty == qty.toInt() ? 0 : 2), width: 2, styles: const PosStyles(align: PosAlign.center)),
+        PosColumn(text: formatPrintCurrency(unitPrice), width: 3, styles: const PosStyles(align: PosAlign.right)),
+        PosColumn(text: formatPrintCurrency(itemTotal), width: 3, styles: const PosStyles(align: PosAlign.right)),
       ]);
     }
     
@@ -1261,28 +1316,45 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     final subtotal = double.tryParse(preview['subtotal']?.toString() ?? '0') ?? 0;
     final discount = double.tryParse(preview['discount']?.toString() ?? '0') ?? 0;
     final total = double.tryParse(preview['total']?.toString() ?? '0') ?? 0;
+    final collectedAmount = double.tryParse(preview['collected_amount']?.toString() ?? '0') ?? 0;
+    final creditAmount = double.tryParse(preview['credit_amount']?.toString() ?? '0') ?? 0;
     
     bytes += generator.row([
       PosColumn(text: 'Subtotal', width: 6),
       PosColumn(text: '', width: 2),
-      PosColumn(text: _currency.format(subtotal), width: 4, styles: PosStyles(align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(subtotal), width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
     
     if (discount > 0) {
       bytes += generator.row([
         PosColumn(text: 'Discount', width: 6),
         PosColumn(text: '', width: 2),
-        PosColumn(text: '-${_currency.format(discount)}', width: 4, styles: PosStyles(align: PosAlign.right)),
+        PosColumn(text: '-${formatPrintCurrency(discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
       ]);
     }
     
     bytes += generator.row([
-      PosColumn(text: 'TOTAL', width: 6, styles: PosStyles(bold: true)),
+      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: '', width: 2),
-      PosColumn(text: _currency.format(total), width: 4, styles: PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
     
     bytes += generator.hr(ch: '-');
+    
+    // Payment details
+    bytes += generator.row([
+      PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: '', width: 2),
+      PosColumn(text: formatPrintCurrency(collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+    ]);
+    
+    if (creditAmount > 0) {
+      bytes += generator.row([
+        PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
+        PosColumn(text: '', width: 2),
+        PosColumn(text: formatPrintCurrency(creditAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      ]);
+    }
     
     // Footer
     bytes += generator.text(
