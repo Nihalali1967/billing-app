@@ -93,7 +93,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     final creditAmount = (printData['credit_amount'] ?? 0).toDouble();
     final billedBy = printData['billed_by']?['name'] ?? printData['billed_by_name'] ?? 'Unknown';
     final items = printData['items'] as List? ?? [];
-    final dateStr = printData['date'] ?? DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now());
+    final dateStr = printData['date'] ?? DateFormat('dd MMM yyyy').format(DateTime.now());
 
     // Customer table balance - try print data first, then fetch customer directly
     var customerCreditBalance = (printData['customer']?['credit_balance'] ?? 0).toDouble();
@@ -188,23 +188,13 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
       receipt.writeln('--------------------------------');
       if (customerCreditBalance > 0) {
-        receipt.writeln('${'Credit Balance (OB)'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
+        receipt.writeln('${'Credit Balance'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
       }
       if (customerExtraAmount > 0) {
-        receipt.writeln('${'Extra Amount (OB)'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
+        receipt.writeln('${'Extra Amount'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
       }
       
-      // 6. Totals
-      // if (creditAmount > 0) {
-      //   if (customerCreditBalance > 0) {
-      //     final totalCredit = customerCreditBalance + creditAmount;
-      //     receipt.writeln('${'  Total Credit'.padRight(30)} ${_currency.format(totalCredit).padLeft(10)}');
-      //   }
-      //   if (customerExtraAmount > 0) {
-      //     final totalExtra = customerExtraAmount - creditAmount;
-      //     receipt.writeln('${'  Total Extra Balance'.padRight(30)} ${_currency.format(totalExtra).padLeft(10)}');
-      //   }
-      // }
+     
     }
 
     receipt.writeln();
@@ -212,8 +202,8 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     receipt.writeln();
     receipt.writeln('Billed by: $billedBy');
     receipt.writeln();
-    receipt.writeln('    Thank you for your business!');
-    receipt.writeln('         Visit again!');
+    receipt.writeln('    Thank you !');
+    
 
     await Share.share(receipt.toString(), subject: 'Bill Receipt - $billNumber');
   }
@@ -528,7 +518,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       styles: const PosStyles(bold: true),
     );
     bytes += generator.text(
-      'Date: ${_bill!.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(_bill!.createdAt!) : 'N/A'}',
+      'Date: ${_bill!.createdAt != null ? DateFormat('dd MMM yyyy').format(_bill!.createdAt!) : 'N/A'}',
     );
     bytes += generator.text(
       'Customer: ${_bill!.customerName ?? 'Walk-in'}',
@@ -620,14 +610,14 @@ bytes += generator.hr();
       bytes += generator.hr(ch: '-');
       if (customerCreditBalance > 0) {
         bytes += generator.row([
-          PosColumn(text: 'Credit Balance (OB)', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'Credit Balance', width: 6, styles: const PosStyles(bold: true)),
           PosColumn(text: '', width: 2),
           PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
         ]);
       }
       if (customerExtraAmount > 0) {
         bytes += generator.row([
-          PosColumn(text: 'Extra Amount (OB)', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'Extra Amount', width: 6, styles: const PosStyles(bold: true)),
           PosColumn(text: '', width: 2),
           PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
         ]);
@@ -820,7 +810,7 @@ bytes += generator.hr();
                               Icon(Icons.calendar_today_rounded, size: 14, color: Colors.white.withOpacity(0.7)),
                               const SizedBox(width: 6),
                               Text(
-                                bill.createdAt != null ? DateFormat('dd MMM yyyy, hh:mm a').format(bill.createdAt!.toLocal()) : '',
+                                bill.createdAt != null ? DateFormat('dd MMM yyyy').format(bill.createdAt!.toLocal()) : '',
                                 style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 13),
                               ),
                             ],
@@ -1253,9 +1243,9 @@ bytes += generator.hr();
                           if (customerCreditBalance > 0 || customerExtraAmount > 0) ...[
                             const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                             if (customerCreditBalance > 0)
-                              _PrintTotalRow('Credit Balance (OB)', customerCreditBalance),
+                              _PrintTotalRow('Credit Balance', customerCreditBalance),
                             if (customerExtraAmount > 0)
-                              _PrintTotalRow('Extra Amount (OB)', customerExtraAmount),
+                              _PrintTotalRow('Extra Amount ', customerExtraAmount),
                           ],
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                           Text('Billed by: ${printData['billed_by']?['name'] ?? printData['billed_by_name'] ?? printData['billed_by'] ?? 'Unknown'}', style: const TextStyle(fontSize: 11)),

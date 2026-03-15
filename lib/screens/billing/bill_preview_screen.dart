@@ -320,6 +320,78 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                           child: _buildRow('Credit', currency.format(creditAmount), color: Colors.orange[800]),
                         ),
                       ],
+                      // Show customer credit/extra and calculated totals
+                      if (billing.customerCreditBalance > 0 || billing.customerExtraAmount > 0) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Divider(height: 1),
+                        ),
+                        if (billing.customerCreditBalance > 0)
+                          _buildRow('Credit Balance ', currency.format(billing.customerCreditBalance), 
+                              color: Colors.blue[700]),
+                        if (billing.customerExtraAmount > 0)
+                          _buildRow('Extra Amount', currency.format(billing.customerExtraAmount), 
+                              color: Colors.green[700]),
+                        // Show Total Credit or Total Extra if there's credit in this bill
+                        if (creditAmount > 0) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: (billing.customerCreditBalance > 0 ? Colors.red : Colors.blue).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: (billing.customerCreditBalance > 0 ? Colors.red : Colors.blue).withOpacity(0.3)),
+                            ),
+                            child: () {
+                              if (billing.customerCreditBalance > 0) {
+                                return _buildRow('Total Credit', currency.format(billing.customerCreditBalance + creditAmount),
+                                    color: Colors.red[700], isBold: true);
+                              } else if (billing.customerExtraAmount > 0) {
+                                final remainingExtra = billing.customerExtraAmount - creditAmount;
+                                if (remainingExtra >= 0) {
+                                  return _buildRow('Total Extra Amt', currency.format(remainingExtra),
+                                      color: Colors.blue[700], isBold: true);
+                                } else {
+                                  return _buildRow('Total Credit', currency.format(remainingExtra.abs()),
+                                      color: Colors.red[700], isBold: true);
+                                }
+                              }
+                              return const SizedBox.shrink();
+                            }(),
+                          ),
+                        ],
+                        // Show Total Extra when collected > (total + credit balance)
+                        if (billing.customerCreditBalance > 0 && collectedAmount > (total + billing.customerCreditBalance)) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                            ),
+                            child: _buildRow('Total Extra Amt', 
+                                currency.format(collectedAmount - (total + billing.customerCreditBalance)),
+                                color: Colors.green[700], isBold: true),
+                          ),
+                        ],
+                        // Show Total Extra when collected > total (for extra amount customers)
+                        if (billing.customerExtraAmount > 0 && collectedAmount > total) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.green.withOpacity(0.3)),
+                            ),
+                            child: _buildRow('Total Extra Amt', 
+                                currency.format(billing.customerExtraAmount + (collectedAmount - total)),
+                                color: Colors.green[700], isBold: true),
+                          ),
+                        ],
+                      ],
                     ],
                   ),
                 ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.05),
@@ -585,6 +657,9 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     if (customerShop.isNotEmpty) {
       receipt.writeln(customerShop);
     }
+    if (customerMobile.isNotEmpty) {
+      receipt.writeln('Mobile: $customerMobile');
+    }
     // Show customer table balance - use provider values (from customer table)
     var customerCreditBalance = billing.customerCreditBalance;
     var customerExtraAmount = billing.customerExtraAmount;
@@ -595,6 +670,12 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
     if (customerExtraAmount == 0) {
       customerExtraAmount = double.tryParse(preview['customer']?['extra_amount']?.toString() ?? '0') ?? 0;
+    }
+    
+    // Show Previous Credit if exists
+    if (customerCreditBalance > 0) {
+      receipt.writeln();
+      receipt.writeln('${'Previous Credit:'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
     }
     
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
@@ -635,19 +716,76 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     receipt.writeln('--------------------------------------');
     receipt.writeln();
 
-    // Totals section - right aligned
-    receipt.writeln('${'Subtotal'.padRight(30)} ${_currency.format(subtotal).padLeft(10)}');
+    // 1. TOTAL first
+    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
+    receipt.writeln();
 
+    // 2. Collected
+    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    // 3. Credit
+    if (creditAmount > 0) {
+      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    }
+
+    // 4. Discount if any
     if (discount > 0) {
       receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
     }
 
-    receipt.writeln('${'TOTAL'.padRight(30)} ${_currency.format(total).padLeft(10)}');
-    receipt.writeln();
-    receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
-
-    if (creditAmount > 0) {
-      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    // 5. Credit Balance / Extra Amount (OB)
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      receipt.writeln('--------------------------------------');
+      if (customerCreditBalance > 0) {
+        receipt.writeln('${'Credit Balance'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
+      }
+      if (customerExtraAmount > 0) {
+        receipt.writeln('${'Extra Amount '.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
+      }
+      
+      // 6. Total Credit or Total Extra (calculated)
+      if (creditAmount > 0) {
+        if (customerCreditBalance > 0) {
+          final totalCredit = customerCreditBalance + creditAmount;
+          receipt.writeln('--------------------------------------');
+          receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(totalCredit).padLeft(10)}');
+          // Show Total Extra when collected > (total + credit balance)
+          if (collectedAmount > (total + customerCreditBalance)) {
+            receipt.writeln('--------------------------------------');
+            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(collectedAmount - (total + customerCreditBalance)).padLeft(10)}');
+          }
+        } else if (customerExtraAmount > 0) {
+          final remainingExtra = customerExtraAmount - creditAmount;
+          receipt.writeln('--------------------------------------');
+          if (remainingExtra >= 0) {
+            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(remainingExtra).padLeft(10)}');
+          } else {
+            final totalCredit = remainingExtra.abs();
+            receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(totalCredit).padLeft(10)}');
+          }
+          // When collected > total, show additional Total Extra = Extra Amount + (collected - total)
+          if (collectedAmount > total) {
+            final additionalExtra = collectedAmount - total;
+            final totalExtraAmt = customerExtraAmount + additionalExtra;
+            receipt.writeln('--------------------------------------');
+            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(totalExtraAmt).padLeft(10)}');
+          }
+        }
+      }
+    }
+    
+    // Show Total Extra when collected > (total + credit balance) - standalone
+    if (customerCreditBalance > 0 && collectedAmount > (total + customerCreditBalance)) {
+      receipt.writeln();
+      receipt.writeln('--------------------------------------');
+      receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(collectedAmount - (total + customerCreditBalance)).padLeft(10)}');
+    }
+    
+    // Show Total Extra when collected > total (for extra amount customers) - standalone
+    if (customerExtraAmount > 0 && collectedAmount > total) {
+      receipt.writeln();
+      receipt.writeln('--------------------------------------');
+      receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(customerExtraAmount + (collectedAmount - total)).padLeft(10)}');
     }
 
     receipt.writeln();
@@ -655,8 +793,8 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     receipt.writeln();
     receipt.writeln('Billed by: $billedBy');
     receipt.writeln();
-    receipt.writeln('    Thank you for your business!');
-    receipt.writeln('         Visit again!');
+    receipt.writeln('    Thank you !');
+  
 
     await Share.share(receipt.toString(), subject: 'Bill Receipt - $billNumber');
   }
@@ -923,17 +1061,63 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                             );
                           }),
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
-                          _PrintTotalRow('Subtotal', (printData['subtotal'] ?? 0).toDouble()),
-                          if ((printData['discount'] ?? 0) > 0)
-                            _PrintTotalRow('Discount', (printData['discount'] ?? 0).toDouble()),
+                          // 1. TOTAL first
                           _PrintTotalRow('Total', (printData['total'] ?? 0).toDouble(), isBold: true),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 4),
+                          // 2. Collected
                           _PrintTotalRow('Collected', (printData['collected_amount'] ?? 0).toDouble()),
+                          // 3. Credit
                           if ((printData['credit_amount'] ?? 0) > 0)
                             _PrintTotalRow('Credit', (printData['credit_amount'] ?? 0).toDouble(), isBold: true),
+                          // 4. Discount if any
+                          if ((printData['discount'] ?? 0) > 0)
+                            _PrintTotalRow('Discount', (printData['discount'] ?? 0).toDouble()),
+                          // 5. Credit Balance / Extra Amount (OB)
+                          Builder(builder: (ctx) {
+                            final billing = ctx.read<BillingProvider>();
+                            var creditBal = billing.customerCreditBalance;
+                            var extraAmt = billing.customerExtraAmount;
+                            final creditAmt = (printData['credit_amount'] ?? 0).toDouble();
+                            final collectedAmt = (printData['collected_amount'] ?? 0).toDouble();
+                            if (creditBal == 0) creditBal = (printData['customer']?['credit_balance'] ?? 0).toDouble();
+                            if (extraAmt == 0) extraAmt = (printData['customer']?['extra_amount'] ?? 0).toDouble();
+                            if (creditBal > 0 || extraAmt > 0) {
+                              return Column(
+                                children: [
+                                  const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
+                                  if (creditBal > 0) _PrintTotalRow('Credit Balance ', creditBal),
+                                  if (extraAmt > 0) _PrintTotalRow('Extra Amount ', extraAmt),
+                                  // 6. Total Credit or Total Extra (calculated)
+                                  if (creditAmt > 0) ...[
+                                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
+                                    if (creditBal > 0)
+                                      _PrintTotalRow('Total Credit', creditBal + creditAmt, isBold: true)
+                                    else if (extraAmt > 0) ...(() {
+                                      final remainingExtra = extraAmt - creditAmt;
+                                      if (remainingExtra >= 0) {
+                                        return [_PrintTotalRow('Total Extra Amt', remainingExtra, isBold: true)];
+                                      } else {
+                                        return [_PrintTotalRow('Total Credit', remainingExtra.abs(), isBold: true)];
+                                      }
+                                    })(),
+                                  ],
+                                  // Show Total Extra when collected > (total + credit balance)
+                                  if (creditBal > 0 && collectedAmt > ((printData['total'] ?? 0).toDouble() + creditBal)) ...[
+                                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
+                                    _PrintTotalRow('Total Extra Amt', collectedAmt - ((printData['total'] ?? 0).toDouble() + creditBal), isBold: true),
+                                  ],
+                                  // Show Total Extra when collected > total (for extra amount customers)
+                                  if (extraAmt > 0 && collectedAmt > (printData['total'] ?? 0).toDouble()) ...[
+                                    const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
+                                    _PrintTotalRow('Total Extra Amt', extraAmt + (collectedAmt - (printData['total'] ?? 0).toDouble()), isBold: true),
+                                  ],
+                                ],
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          }),
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
-                          const Center(child: Text('Thank you for your business!', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
-                          const Center(child: Text('Visit again!', style: TextStyle(fontSize: 10))),
+                          const Center(child: Text('Thank you!', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold))),
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -1005,91 +1189,98 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
         return;
       }
 
+      // Fetch paired devices BEFORE showing dialog
+      List<BluetoothInfo> devices = [];
+      bool scanning = true;
+
+      try {
+        devices = await PrintBluetoothThermal.pairedBluetooths;
+      } catch (_) {}
+      scanning = false;
+
+      if (!mounted) return;
+
       // Show printer selection dialog
       await showDialog(
-      context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) {
-          List<BluetoothInfo> devices = [];
-          bool scanning = true;
-
-          // Initial scan
-          Future.microtask(() async {
-            try {
-              final scannedDevices = await PrintBluetoothThermal.pairedBluetooths;
-              if (mounted) {
-                setDialogState(() {
-                  devices = scannedDevices;
-                  scanning = false;
-                });
-              }
-            } catch (_) {
-              if (mounted) {
-                setDialogState(() {
-                  scanning = false;
-                });
-              }
-            }
-          });
-
-          return AlertDialog(
-            title: Row(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogCtx) => StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.print_rounded, color: Colors.blue, size: 20),
                   ),
-                  child: const Icon(Icons.print_rounded, color: Colors.blue, size: 20),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(child: Text('Select Printer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-                if (scanning)
-                  const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-              ],
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: devices.isEmpty && !scanning
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.bluetooth_disabled_rounded, size: 48, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text('No paired printers found',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 15)),
-                        const SizedBox(height: 8),
-                        Text('Pair your thermal printer in\nBluetooth settings first',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey[500], fontSize: 13)),
-                      ],
-                    )
-                  : scanning
-                      ? Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text('Scanning for printers...', style: TextStyle(color: Colors.grey)),
-                          ],
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Select Printer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+                  if (scanning)
+                    const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 320,
+                child: Column(
+                  children: [
+                    if (devices.isEmpty && !scanning)
+                      Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.bluetooth_disabled_rounded, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text('No paired printers found',
+                                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700], fontSize: 15)),
+                              const SizedBox(height: 8),
+                              Text('Pair your thermal printer in\nBluetooth settings first',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else if (devices.isEmpty && scanning)
+                      const Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 16),
+                              Text('Scanning for printers...', style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: ListView.separated(
                           itemCount: devices.length,
-                          itemBuilder: (_, i) {
-                            final device = devices[i];
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final device = devices[index];
                             return ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               leading: Container(
-                                padding: EdgeInsets.all(8),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
                                   color: Colors.blue.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Icon(Icons.bluetooth_rounded, color: Colors.blue, size: 20),
+                                child: const Icon(Icons.bluetooth, color: Colors.blue, size: 20),
                               ),
-                              title: Text(device.name),
-                              subtitle: Text(device.macAdress),
+                              title: Text(device.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                              subtitle: Text(device.macAdress, style: TextStyle(color: Colors.grey[500], fontSize: 12)),
                               trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey),
                               onTap: () {
                                 Navigator.pop(dialogCtx);
@@ -1098,36 +1289,47 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
                             );
                           },
                         ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: scanning ? null : () async {
-                  setDialogState(() {
-                    scanning = true;
-                  });
-                  try {
-                    final scannedDevices = await PrintBluetoothThermal.pairedBluetooths;
-                    setDialogState(() {
-                      devices = scannedDevices;
-                      scanning = false;
-                    });
-                  } catch (_) {
-                    setDialogState(() {
-                      scanning = false;
-                    });
-                  }
-                },
-                child: Text('Refresh'),
+                      ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: scanning ? null : () async {
+                              setDialogState(() => scanning = true);
+                              try {
+                                devices = await PrintBluetoothThermal.pairedBluetooths;
+                              } catch (_) {}
+                              setDialogState(() => scanning = false);
+                            },
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Rescan'),
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(dialogCtx),
+                            child: const Text('Cancel'),
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: Text('Cancel'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+            );
+          },
+        ),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1242,6 +1444,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     // Bill details
     final billNumber = preview['bill_number'] ?? 'Preview';
     final customerName = preview['customer']?['name'] ?? 'Walk-in Customer';
+    final customerShop = preview['customer']?['shop_name'] ?? '';
     final customerMobile = preview['customer']?['mobile'] ?? '';
     
     // Get customer credit/extra from provider (customer table) first
@@ -1258,6 +1461,9 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     
     bytes += generator.text('Bill No: $billNumber', styles: const PosStyles(bold: true));
     bytes += generator.text('Customer: $customerName');
+    if (customerShop.isNotEmpty) {
+      bytes += generator.text('Shop: $customerShop');
+    }
     if (customerMobile.isNotEmpty) {
       bytes += generator.text('Mobile: $customerMobile');
     }
@@ -1266,6 +1472,14 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     // Add customer credit/extra to thermal print if exists
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
       bytes += generator.hr(ch: '-');
+      // Show Previous Credit first if exists
+      if (customerCreditBalance > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Previous Credit:', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
       if (customerCreditBalance > 0) {
         bytes += generator.row([
           PosColumn(text: 'Cust Credit Bal:', width: 6, styles: const PosStyles(bold: true)),
@@ -1312,27 +1526,13 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     
     bytes += generator.hr();
     
-    // Totals
-    final subtotal = double.tryParse(preview['subtotal']?.toString() ?? '0') ?? 0;
+    // Get values from preview
     final discount = double.tryParse(preview['discount']?.toString() ?? '0') ?? 0;
     final total = double.tryParse(preview['total']?.toString() ?? '0') ?? 0;
     final collectedAmount = double.tryParse(preview['collected_amount']?.toString() ?? '0') ?? 0;
     final creditAmount = double.tryParse(preview['credit_amount']?.toString() ?? '0') ?? 0;
     
-    bytes += generator.row([
-      PosColumn(text: 'Subtotal', width: 6),
-      PosColumn(text: '', width: 2),
-      PosColumn(text: formatPrintCurrency(subtotal), width: 4, styles: const PosStyles(align: PosAlign.right)),
-    ]);
-    
-    if (discount > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'Discount', width: 6),
-        PosColumn(text: '', width: 2),
-        PosColumn(text: '-${formatPrintCurrency(discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-    }
-    
+    // 1. TOTAL first
     bytes += generator.row([
       PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: '', width: 2),
@@ -1341,13 +1541,14 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     
     bytes += generator.hr(ch: '-');
     
-    // Payment details
+    // 2. Collected
     bytes += generator.row([
       PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: '', width: 2),
       PosColumn(text: formatPrintCurrency(collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
     
+    // 3. Credit
     if (creditAmount > 0) {
       bytes += generator.row([
         PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
@@ -1356,15 +1557,111 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       ]);
     }
     
-    // Footer
+    // 4. Discount if any
+    if (discount > 0) {
+      bytes += generator.row([
+        PosColumn(text: 'Discount', width: 6),
+        PosColumn(text: '', width: 2),
+        PosColumn(text: '-${formatPrintCurrency(discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+    }
+    
+    // 5. Credit Balance / Extra Amount (OB)
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      bytes += generator.hr(ch: '-');
+      if (customerCreditBalance > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Credit Balance ', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+      if (customerExtraAmount > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Extra Amount', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+      
+      // 6. Total Credit or Total Extra (calculated)
+      if (creditAmount > 0) {
+        if (customerCreditBalance > 0) {
+          final totalCredit = customerCreditBalance + creditAmount;
+          bytes += generator.hr(ch: '-');
+          bytes += generator.row([
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(totalCredit), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
+          // Show Total Extra when collected > (total + credit balance)
+          if (collectedAmount > (total + customerCreditBalance)) {
+            bytes += generator.hr(ch: '-');
+            bytes += generator.row([
+              PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+              PosColumn(text: '', width: 2),
+              PosColumn(text: formatPrintCurrency(collectedAmount - (total + customerCreditBalance)), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            ]);
+          }
+        } else if (customerExtraAmount > 0) {
+          final remainingExtra = customerExtraAmount - creditAmount;
+          bytes += generator.hr(ch: '-');
+          if (remainingExtra >= 0) {
+            bytes += generator.row([
+              PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+              PosColumn(text: '', width: 2),
+              PosColumn(text: formatPrintCurrency(remainingExtra), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            ]);
+          } else {
+            final totalCredit = remainingExtra.abs();
+            bytes += generator.row([
+              PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+              PosColumn(text: '', width: 2),
+              PosColumn(text: formatPrintCurrency(totalCredit), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            ]);
+          }
+          // When collected > total, show additional Total Extra = Extra Amount + (collected - total)
+          if (collectedAmount > total) {
+            bytes += generator.hr(ch: '-');
+            final additionalExtra = collectedAmount - total;
+            final totalExtraAmt = customerExtraAmount + additionalExtra;
+            bytes += generator.row([
+              PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+              PosColumn(text: '', width: 2),
+              PosColumn(text: formatPrintCurrency(totalExtraAmt), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            ]);
+          }
+        }
+      }
+      
+      // Show Total Extra when collected > (total + credit balance) - standalone
+      if (customerCreditBalance > 0 && collectedAmount > (total + customerCreditBalance)) {
+        bytes += generator.hr(ch: '-');
+        bytes += generator.row([
+          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(collectedAmount - (total + customerCreditBalance)), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+      
+      // Show Total Extra when collected > total (for extra amount customers) - standalone
+      if (customerExtraAmount > 0 && collectedAmount > total) {
+        bytes += generator.hr(ch: '-');
+        final totalExtraAmt = customerExtraAmount + (collectedAmount - total);
+        bytes += generator.row([
+          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(totalExtraAmt), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
+    }
+    
+    bytes += generator.hr();
     bytes += generator.text(
-      'Thank you for your business!',
+      'Thank you !',
       styles: PosStyles(align: PosAlign.center, bold: true),
     );
-    bytes += generator.text(
-      'Visit again!',
-      styles: PosStyles(align: PosAlign.center),
-    );
+   
     
     bytes += generator.feed(2);
     bytes += generator.cut();

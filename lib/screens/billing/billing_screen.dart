@@ -105,38 +105,6 @@ class _BillingScreenState extends State<BillingScreen> {
     );
   }
 
-  void _setDiscount() {
-    final billing = context.read<BillingProvider>();
-    final ctrl = TextEditingController(text: billing.discount.toString());
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Discount'),
-        content: TextField(
-          controller: ctrl,
-          decoration: const InputDecoration(
-            labelText: 'Discount Amount',
-            prefixText: '₹ ',
-            prefixIcon: Icon(Icons.local_offer_rounded),
-          ),
-          keyboardType: TextInputType.number,
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () {
-              billing.setDiscount(double.tryParse(ctrl.text) ?? 0);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _setCollected() {
     final billing = context.read<BillingProvider>();
     final ctrl = TextEditingController(text: billing.total.toStringAsFixed(2));
@@ -632,20 +600,6 @@ class _BillingScreenState extends State<BillingScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _SummaryRow('Subtotal', _currency.format(billing.subtotal)),
-                          const SizedBox(height: 2),
-                          InkWell(
-                            onTap: _setDiscount,
-                            borderRadius: BorderRadius.circular(10),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                              child: _SummaryRow(
-                                'Discount',
-                                '- ${_currency.format(billing.discount)}',
-                                actionIcon: Icons.edit_rounded,
-                                color: Colors.red[600],
-                              ),
-                            ),
-                          ),
                           const Padding(
                             padding: EdgeInsets.symmetric(vertical: 4),
                             child: Divider(height: 1),
@@ -681,6 +635,82 @@ class _BillingScreenState extends State<BillingScreen> {
                                   'Credit Amount', _currency.format(billing.creditAmount),
                                   color: Colors.orange[800], isBold: true),
                             ),
+                          ],
+                          // Show customer credit/extra and calculated totals
+                          if (billing.customerCreditBalance > 0 || billing.customerExtraAmount > 0) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 4),
+                              child: Divider(height: 1),
+                            ),
+                            if (billing.customerCreditBalance > 0)
+                              _SummaryRow('Credit Balance', _currency.format(billing.customerCreditBalance),
+                                  color: Colors.blue[700]),
+                            if (billing.customerExtraAmount > 0)
+                              _SummaryRow('Extra Amount ', _currency.format(billing.customerExtraAmount),
+                                  color: Colors.green[700]),
+                            // Show Total Credit or Total Extra if there's credit in this bill
+                            if (billing.creditAmount > 0) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: (billing.customerCreditBalance > 0 ? Colors.red : Colors.blue).withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: (billing.customerCreditBalance > 0 ? Colors.red : Colors.blue).withOpacity(0.3)),
+                                ),
+                                child: () {
+                                  if (billing.customerCreditBalance > 0) {
+                                    final totalCredit = billing.customerCreditBalance + billing.creditAmount;
+                                    return _SummaryRow(
+                                        'Total Credit', _currency.format(totalCredit),
+                                        color: Colors.red[700], isBold: true);
+                                  } else if (billing.customerExtraAmount > 0) {
+                                    final remainingExtra = billing.customerExtraAmount - billing.creditAmount;
+                                    if (remainingExtra >= 0) {
+                                      return _SummaryRow(
+                                          'Total Extra Amt', _currency.format(remainingExtra),
+                                          color: Colors.blue[700], isBold: true);
+                                    } else {
+                                      return _SummaryRow(
+                                          'Total Credit', _currency.format(remainingExtra.abs()),
+                                          color: Colors.red[700], isBold: true);
+                                    }
+                                  }
+                                  return const SizedBox.shrink();
+                                }(),
+                              ),
+                            ],
+                            // Show Total Extra when collected > (total + credit balance)
+                            if (billing.customerCreditBalance > 0 && billing.collectedAmount > (billing.total + billing.customerCreditBalance)) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                ),
+                                child: _SummaryRow(
+                                    'Total Extra Amt', _currency.format(billing.collectedAmount - (billing.total + billing.customerCreditBalance)),
+                                    color: Colors.green[700], isBold: true),
+                              ),
+                            ],
+                            // Show Total Extra when collected > total (for extra amount customers)
+                            if (billing.customerExtraAmount > 0 && billing.collectedAmount > billing.total) ...[
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                ),
+                                child: _SummaryRow(
+                                    'Total Extra Amt', _currency.format(billing.customerExtraAmount + (billing.collectedAmount - billing.total)),
+                                    color: Colors.green[700], isBold: true),
+                              ),
+                            ],
                           ],
                           const SizedBox(height: 12),
                           SizedBox(
