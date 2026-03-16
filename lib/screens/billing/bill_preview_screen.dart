@@ -723,69 +723,50 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     // 2. Collected
     receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
 
-    // 3. Credit
-    if (creditAmount > 0) {
-      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
-    }
+    // Calculate for Extra Amount customers - Extra reduces the bill
+    final adjustedTotal = customerExtraAmount > 0 && total > customerExtraAmount 
+        ? total - customerExtraAmount 
+        : (customerExtraAmount > 0 && total <= customerExtraAmount ? 0.0 : total);
+    final extraRemainingCredit = customerExtraAmount > 0 && adjustedTotal > 0
+        ? adjustedTotal - collectedAmount
+        : 0.0;
 
-    // 4. Discount if any
-    if (discount > 0) {
-      receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
-    }
-
-    // 5. Credit Balance / Extra Amount (OB)
+    // 3. Show Total Credit or Total Extra based on customer OB balance
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
       receipt.writeln('--------------------------------------');
-      if (customerCreditBalance > 0) {
-        receipt.writeln('${'Credit Balance'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
-      }
-      if (customerExtraAmount > 0) {
-        receipt.writeln('${'Extra Amount '.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
-      }
       
-      // 6. Total Credit or Total Extra (calculated)
-      if (creditAmount > 0) {
-        if (customerCreditBalance > 0) {
-          final totalCredit = customerCreditBalance + creditAmount;
-          receipt.writeln('--------------------------------------');
-          receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(totalCredit).padLeft(10)}');
-          // Show Total Extra when collected > (total + credit balance)
-          if (collectedAmount > (total + customerCreditBalance)) {
-            receipt.writeln('--------------------------------------');
-            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(collectedAmount - (total + customerCreditBalance)).padLeft(10)}');
-          }
-        } else if (customerExtraAmount > 0) {
-          final remainingExtra = customerExtraAmount - creditAmount;
-          receipt.writeln('--------------------------------------');
-          if (remainingExtra >= 0) {
-            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(remainingExtra).padLeft(10)}');
+      if (customerCreditBalance > 0) {
+        // Customer has Credit Balance (OB)
+        final totalWithCredit = total + customerCreditBalance;
+        final excessCollection = collectedAmount > totalWithCredit 
+            ? collectedAmount - totalWithCredit 
+            : 0.0;
+        final remainingCredit = totalWithCredit > collectedAmount
+            ? totalWithCredit - collectedAmount
+            : 0.0;
+        
+        if (collectedAmount >= totalWithCredit) {
+          if (excessCollection > 0) {
+            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(excessCollection).padLeft(10)}');
           } else {
-            final totalCredit = remainingExtra.abs();
-            receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(totalCredit).padLeft(10)}');
+            receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}');
           }
-          // When collected > total, show additional Total Extra = Extra Amount + (collected - total)
-          if (collectedAmount > total) {
-            final additionalExtra = collectedAmount - total;
-            final totalExtraAmt = customerExtraAmount + additionalExtra;
-            receipt.writeln('--------------------------------------');
-            receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(totalExtraAmt).padLeft(10)}');
-          }
+        } else {
+          receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(remainingCredit).padLeft(10)}');
+        }
+      } else if (customerExtraAmount > 0) {
+        // Customer has Extra Amount (OB) - Extra reduces the bill
+        if (adjustedTotal == 0) {
+          // Extra covers entire bill
+          receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}');
+        } else if (extraRemainingCredit > 0) {
+          // Still owe some after using extra
+          receipt.writeln('${'Total Credit'.padRight(30)} ${_currency.format(extraRemainingCredit > 0 ? extraRemainingCredit : 0).padLeft(10)}');
+        } else {
+          // Bill fully paid, show preserved extra
+          receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
         }
       }
-    }
-    
-    // Show Total Extra when collected > (total + credit balance) - standalone
-    if (customerCreditBalance > 0 && collectedAmount > (total + customerCreditBalance)) {
-      receipt.writeln();
-      receipt.writeln('--------------------------------------');
-      receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(collectedAmount - (total + customerCreditBalance)).padLeft(10)}');
-    }
-    
-    // Show Total Extra when collected > total (for extra amount customers) - standalone
-    if (customerExtraAmount > 0 && collectedAmount > total) {
-      receipt.writeln();
-      receipt.writeln('--------------------------------------');
-      receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(customerExtraAmount + (collectedAmount - total)).padLeft(10)}');
     }
 
     receipt.writeln();
@@ -1548,111 +1529,76 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       PosColumn(text: formatPrintCurrency(collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
     
-    // 3. Credit
-    if (creditAmount > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: '', width: 2),
-        PosColumn(text: formatPrintCurrency(creditAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
-    }
+    // Calculate for Credit Balance customers
+    final totalWithCredit = total + customerCreditBalance;
+    final excessCollection = collectedAmount > totalWithCredit 
+        ? collectedAmount - totalWithCredit 
+        : 0.0;
+    final remainingCredit = totalWithCredit > collectedAmount
+        ? totalWithCredit - collectedAmount
+        : 0.0;
     
-    // 4. Discount if any
-    if (discount > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'Discount', width: 6),
-        PosColumn(text: '', width: 2),
-        PosColumn(text: '-${formatPrintCurrency(discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-    }
+    // Calculate for Extra Amount customers - Extra reduces the bill
+    final adjustedTotal = customerExtraAmount > 0 && total > customerExtraAmount 
+        ? total - customerExtraAmount 
+        : (customerExtraAmount > 0 && total <= customerExtraAmount ? 0.0 : total);
+    final extraRemainingCredit = customerExtraAmount > 0 && adjustedTotal > 0
+        ? adjustedTotal - collectedAmount
+        : 0.0;
     
-    // 5. Credit Balance / Extra Amount (OB)
+    // 3. Show Total Credit or Total Extra based on customer OB balance
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
       bytes += generator.hr(ch: '-');
-      if (customerCreditBalance > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'Credit Balance ', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
-      }
-      if (customerExtraAmount > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'Extra Amount', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
-      }
       
-      // 6. Total Credit or Total Extra (calculated)
-      if (creditAmount > 0) {
-        if (customerCreditBalance > 0) {
-          final totalCredit = customerCreditBalance + creditAmount;
-          bytes += generator.hr(ch: '-');
-          bytes += generator.row([
-            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
-            PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(totalCredit), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-          ]);
-          // Show Total Extra when collected > (total + credit balance)
-          if (collectedAmount > (total + customerCreditBalance)) {
-            bytes += generator.hr(ch: '-');
+      if (customerCreditBalance > 0) {
+        // Customer has Credit Balance (OB)
+        if (collectedAmount >= totalWithCredit) {
+          // Collected covers everything
+          if (excessCollection > 0) {
             bytes += generator.row([
               PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
               PosColumn(text: '', width: 2),
-              PosColumn(text: formatPrintCurrency(collectedAmount - (total + customerCreditBalance)), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-            ]);
-          }
-        } else if (customerExtraAmount > 0) {
-          final remainingExtra = customerExtraAmount - creditAmount;
-          bytes += generator.hr(ch: '-');
-          if (remainingExtra >= 0) {
-            bytes += generator.row([
-              PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
-              PosColumn(text: '', width: 2),
-              PosColumn(text: formatPrintCurrency(remainingExtra), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+              PosColumn(text: formatPrintCurrency(excessCollection), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
             ]);
           } else {
-            final totalCredit = remainingExtra.abs();
             bytes += generator.row([
               PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
               PosColumn(text: '', width: 2),
-              PosColumn(text: formatPrintCurrency(totalCredit), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+              PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
             ]);
           }
-          // When collected > total, show additional Total Extra = Extra Amount + (collected - total)
-          if (collectedAmount > total) {
-            bytes += generator.hr(ch: '-');
-            final additionalExtra = collectedAmount - total;
-            final totalExtraAmt = customerExtraAmount + additionalExtra;
-            bytes += generator.row([
-              PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
-              PosColumn(text: '', width: 2),
-              PosColumn(text: formatPrintCurrency(totalExtraAmt), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-            ]);
-          }
+        } else {
+          // Still has remaining credit
+          bytes += generator.row([
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(remainingCredit), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
         }
-      }
-      
-      // Show Total Extra when collected > (total + credit balance) - standalone
-      if (customerCreditBalance > 0 && collectedAmount > (total + customerCreditBalance)) {
-        bytes += generator.hr(ch: '-');
-        bytes += generator.row([
-          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(collectedAmount - (total + customerCreditBalance)), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
-      }
-      
-      // Show Total Extra when collected > total (for extra amount customers) - standalone
-      if (customerExtraAmount > 0 && collectedAmount > total) {
-        bytes += generator.hr(ch: '-');
-        final totalExtraAmt = customerExtraAmount + (collectedAmount - total);
-        bytes += generator.row([
-          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(totalExtraAmt), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
+      } else if (customerExtraAmount > 0) {
+        // Customer has Extra Amount (OB) - Extra reduces the bill
+        if (adjustedTotal == 0) {
+          // Extra covers entire bill
+          bytes += generator.row([
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
+        } else if (extraRemainingCredit > 0) {
+          // Still owe some after using extra
+          bytes += generator.row([
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(extraRemainingCredit), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
+        } else {
+          // Bill fully paid, show preserved extra
+          bytes += generator.row([
+            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
+        }
       }
     }
     

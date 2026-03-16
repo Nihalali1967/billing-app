@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../models/bill.dart';
 import '../../providers/bill_provider.dart';
+import '../../providers/customer_provider.dart';
 import 'bill_detail_screen.dart';
 
 class BillListScreen extends StatefulWidget {
@@ -16,6 +18,219 @@ class _BillListScreenState extends State<BillListScreen> {
   final _searchController = TextEditingController();
   final _currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
   DateTimeRange? _dateRange;
+
+  Future<void> _showDeleteBillDialog(Bill bill) async {
+    // Show customer's current credit/extra amounts from the bill
+    final creditCtrl = TextEditingController(
+      text: bill.customerCreditBalance > 0 ? bill.customerCreditBalance.toString() : '0',
+    );
+    final extraCtrl = TextEditingController(
+      text: bill.customerExtraAmount > 0 ? bill.customerExtraAmount.toString() : '0',
+    );
+
+    // Add listeners for mutual exclusion
+    creditCtrl.addListener(() {
+      final creditValue = double.tryParse(creditCtrl.text) ?? 0;
+      if (creditValue > 0 && extraCtrl.text != '0') {
+        extraCtrl.text = '0';
+      }
+    });
+
+    extraCtrl.addListener(() {
+      final extraValue = double.tryParse(extraCtrl.text) ?? 0;
+      if (extraValue > 0 && creditCtrl.text != '0') {
+        creditCtrl.text = '0';
+      }
+    });
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.delete_outline, color: Colors.red),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Delete Bill?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bill: ${bill.billNumber}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Customer: ${bill.customerName ?? 'Unknown'}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Total: ${_currency.format(bill.total)}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Update Customer Balance',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: creditCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Credit Balance',
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        hintText: '0.00',
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: extraCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Extra Amount',
+                        prefixIcon: Icon(Icons.add_circle_outline),
+                        hintText: '0.00',
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Note: Enter Credit Balance OR Extra Amount (not both)',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'This will delete the bill and update the customer balance. This action cannot be undone.',
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.delete, size: 18),
+            label: const Text('Delete & Update'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      final creditValue = double.tryParse(creditCtrl.text) ?? 0;
+      final extraValue = double.tryParse(extraCtrl.text) ?? 0;
+
+      // Delete the bill first
+      final billDeleted = await context.read<BillProvider>().deleteBill(bill.id);
+
+      if (billDeleted && mounted) {
+        // Update customer with new credit/extra amounts
+        final customerData = {
+          'credit_balance': creditValue,
+          'extra_amount': extraValue,
+        };
+
+        final customerUpdated = await context.read<CustomerProvider>().update(
+          bill.customerId,
+          customerData,
+        );
+
+        if (customerUpdated && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Bill deleted and customer balance updated'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Bill deleted but customer update failed'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Failed to delete bill'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+
+    creditCtrl.dispose();
+    extraCtrl.dispose();
+  }
 
   @override
   void initState() {
@@ -161,6 +376,7 @@ class _BillListScreenState extends State<BillListScreen> {
                                     dateTo: _dateRange?.end.toIso8601String().split('T')[0],
                                   );
                                 },
+                                onLongPress: () => _showDeleteBillDialog(b),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16),
                                   child: Column(

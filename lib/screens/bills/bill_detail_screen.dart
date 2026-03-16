@@ -44,6 +44,32 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
   }
 
   Future<void> _deleteBill() async {
+    final bill = _bill;
+    if (bill == null) return;
+
+    // Show customer's current credit/extra amounts from the bill
+    final creditCtrl = TextEditingController(
+      text: bill.customerCreditBalance > 0 ? bill.customerCreditBalance.toString() : '0',
+    );
+    final extraCtrl = TextEditingController(
+      text: bill.customerExtraAmount > 0 ? bill.customerExtraAmount.toString() : '0',
+    );
+
+    // Add listeners for mutual exclusion
+    creditCtrl.addListener(() {
+      final creditValue = double.tryParse(creditCtrl.text) ?? 0;
+      if (creditValue > 0 && extraCtrl.text != '0') {
+        extraCtrl.text = '0';
+      }
+    });
+
+    extraCtrl.addListener(() {
+      final extraValue = double.tryParse(extraCtrl.text) ?? 0;
+      if (extraValue > 0 && creditCtrl.text != '0') {
+        creditCtrl.text = '0';
+      }
+    });
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -59,21 +85,149 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
             const Text('Delete Bill'),
           ],
         ),
-        content: Text('Delete bill "${_bill?.billNumber}"?\nThis will restore the customer\'s credit balance and stock quantities. This action cannot be undone.'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Update Customer Balance',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange[800],
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: creditCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Credit Balance',
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+                        hintText: '0.00',
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: extraCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Extra Amount',
+                        prefixIcon: Icon(Icons.add_circle_outline),
+                        hintText: '0.00',
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Note: Enter Credit Balance OR Extra Amount (not both)',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+             
+            ],
+          ),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(
+          FilledButton.icon(
             onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete'),
+            icon: const Icon(Icons.delete, size: 18),
+            label: const Text('Delete & Update'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
           ),
         ],
       ),
     );
+
     if (confirm == true && mounted) {
+      final creditValue = double.tryParse(creditCtrl.text) ?? 0;
+      final extraValue = double.tryParse(extraCtrl.text) ?? 0;
+
+      // Delete the bill first
       final success = await context.read<BillProvider>().deleteBill(widget.billId);
-      if (success && mounted) Navigator.pop(context, true);
+
+      if (success && mounted) {
+        // Update customer with new credit/extra amounts
+        final customerData = {
+          'credit_balance': creditValue,
+          'extra_amount': extraValue,
+        };
+
+        final customerUpdated = await context.read<CustomerProvider>().update(
+          bill.customerId,
+          customerData,
+        );
+
+        if (customerUpdated && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Bill deleted and customer balance updated'),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Bill deleted but customer update failed'),
+                ],
+              ),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+        if (mounted) Navigator.pop(context, true);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Failed to delete bill'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
     }
+
+    creditCtrl.dispose();
+    extraCtrl.dispose();
   }
 
   Future<void> _shareBill() async {
@@ -129,15 +283,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       receipt.writeln(customerShop);
     }
     // Show customer table balance if exists
-    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
-      receipt.writeln();
-      if (customerCreditBalance > 0) {
-        receipt.writeln('${'Customer Credit Bal:'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
-      }
-      if (customerExtraAmount > 0) {
-        receipt.writeln('${'Customer Extra Amt:'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
-      }
-    }
+    
     receipt.writeln();
 
     // Separator line
@@ -174,27 +320,20 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     // 2. Collected
     receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
 
-    // 3. Credit
-    if (creditAmount > 0) {
-      receipt.writeln('${'Credit'.padRight(30)} ${_currency.format(creditAmount).padLeft(10)}');
+    // 3. Customer-based calculations from customer table
+    if (customerExtraAmount > 0 || customerCreditBalance > 0) {
+      receipt.writeln('--------------------------------');
+      if (customerExtraAmount > 0) {
+        receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
+      }
+      if (customerCreditBalance > 0) {
+        receipt.writeln('${'Credit Balance'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
+      }
     }
 
     // 4. Discount if any
     if (discount > 0) {
       receipt.writeln('${'Discount'.padRight(30)} -${_currency.format(discount).padLeft(9)}');
-    }
-
-    // 5. Credit Balance / Extra Amount (OB)
-    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
-      receipt.writeln('--------------------------------');
-      if (customerCreditBalance > 0) {
-        receipt.writeln('${'Credit Balance'.padRight(30)} ${_currency.format(customerCreditBalance).padLeft(10)}');
-      }
-      if (customerExtraAmount > 0) {
-        receipt.writeln('${'Extra Amount'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
-      }
-      
-     
     }
 
     receipt.writeln();
@@ -573,11 +712,15 @@ bytes += generator.hr();
 
     bytes += generator.hr();
 
+    // Get values
+    final total = _bill!.total;
+    final collectedAmount = _bill!.collectedAmount;
+    
     // 1. TOTAL first
     bytes += generator.row([
       PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: '', width: 2),
-      PosColumn(text: formatPrintCurrency(_bill!.total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
 
     // 2. Collected
@@ -585,41 +728,24 @@ bytes += generator.hr();
     bytes += generator.row([
       PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
       PosColumn(text: '', width: 2),
-      PosColumn(text: formatPrintCurrency(_bill!.collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
     ]);
 
-    // 3. Credit amount
-    if (_bill!.creditAmount > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'Credit', width: 6, styles: const PosStyles(bold: true)),
-        PosColumn(text: '', width: 2),
-        PosColumn(text: formatPrintCurrency(_bill!.creditAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-      ]);
-    }
-
-    if (_bill!.discount > 0) {
-      bytes += generator.row([
-        PosColumn(text: 'Discount', width: 6),
-        PosColumn(text: '', width: 2),
-        PosColumn(text: '-${formatPrintCurrency(_bill!.discount)}', width: 4, styles: const PosStyles(align: PosAlign.right)),
-      ]);
-    }
-
-    // 4. Customer table balance (OB) after credit
-    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+    // 3. Customer-based calculations from customer table
+    if (customerExtraAmount > 0 || customerCreditBalance > 0) {
       bytes += generator.hr(ch: '-');
+      if (customerExtraAmount > 0) {
+        bytes += generator.row([
+          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: '', width: 2),
+          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+        ]);
+      }
       if (customerCreditBalance > 0) {
         bytes += generator.row([
           PosColumn(text: 'Credit Balance', width: 6, styles: const PosStyles(bold: true)),
           PosColumn(text: '', width: 2),
           PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
-        ]);
-      }
-      if (customerExtraAmount > 0) {
-        bytes += generator.row([
-          PosColumn(text: 'Extra Amount', width: 6, styles: const PosStyles(bold: true)),
-          PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
         ]);
       }
     }
@@ -628,7 +754,7 @@ bytes += generator.hr();
 
     // Footer
     bytes += generator.text(
-      'Thank you for your business!',
+      'Thank you !',
       styles: const PosStyles(align: PosAlign.center, bold: true),
     );
     bytes += generator.text(
@@ -947,18 +1073,39 @@ bytes += generator.hr();
                         ),
                         child: Column(
                           children: [
-                            _TotalRow('Subtotal', _currency.format(bill.subtotal)),
-                            if (bill.discount > 0) _TotalRow('Discount', '- ${_currency.format(bill.discount)}', color: Colors.red),
-                            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Divider(height: 1)),
+                            // 1. Total
                             _TotalRow('Total', _currency.format(bill.total), isBold: true, fontSize: 18),
                             const SizedBox(height: 8),
+                            // 2. Collected
                             _TotalRow('Collected', _currency.format(bill.collectedAmount), color: Colors.green[700], isBold: true),
-                            if (bill.creditAmount > 0) ...[
+                            // 3. Customer-based calculations from customer table
+                            if (bill.customerExtraAmount > 0 || bill.customerCreditBalance > 0) ...[
                               const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.withOpacity(0.3))),
-                                child: _TotalRow('Credit Balance', _currency.format(bill.creditAmount), color: Colors.orange[800], isBold: true),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    if (bill.customerExtraAmount > 0)
+                                      _TotalRow(
+                                        'Total Extra Amt',
+                                        _currency.format(bill.customerExtraAmount),
+                                        color: Colors.blue[800],
+                                        isBold: true,
+                                      ),
+                                    if (bill.customerCreditBalance > 0)
+                                      _TotalRow(
+                                        'Credit Balance',
+                                        _currency.format(bill.customerCreditBalance),
+                                        color: Colors.orange[800],
+                                        isBold: true,
+                                      ),
+                                  ],
+                                ),
                               ),
                             ],
                           ],
@@ -1152,13 +1299,7 @@ bytes += generator.hr();
                             Text(printData['customer']['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
                             if (printData['customer']['shop_name'] != null)
                               Text(printData['customer']['shop_name']),
-                            if (customerCreditBalance > 0 || customerExtraAmount > 0) ...[
-                              const SizedBox(height: 4),
-                              if (customerCreditBalance > 0)
-                                _PrintTotalRow('Customer Credit Bal', customerCreditBalance),
-                              if (customerExtraAmount > 0)
-                                _PrintTotalRow('Customer Extra Amt', customerExtraAmount),
-                            ],
+                            
                           ],
                           const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
                           Row(
@@ -1233,25 +1374,22 @@ bytes += generator.hr();
                           const SizedBox(height: 4),
                           // 2. Collected
                           _PrintTotalRow('Collected', (printData['collected_amount'] ?? 0).toDouble()),
-                          // 3. Credit
-                          if ((printData['credit_amount'] ?? 0) > 0)
-                            _PrintTotalRow('Credit', (printData['credit_amount'] ?? 0).toDouble(), isBold: true),
-                          // 4. Discount if any
-                          if ((printData['discount'] ?? 0) > 0)
-                            _PrintTotalRow('Discount', (printData['discount'] ?? 0).toDouble()),
-                          // 5. Credit Balance / Extra Amount (OB)
-                          if (customerCreditBalance > 0 || customerExtraAmount > 0) ...[
-                            const Padding(padding: EdgeInsets.symmetric(vertical: 4), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
-                            if (customerCreditBalance > 0)
-                              _PrintTotalRow('Credit Balance', customerCreditBalance),
+                          // 3. Customer-based calculations from customer table
+                          if (customerExtraAmount > 0 || customerCreditBalance > 0) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                '----------------------------------------',
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ),
                             if (customerExtraAmount > 0)
-                              _PrintTotalRow('Extra Amount ', customerExtraAmount),
+                              _PrintTotalRow('Total Extra Amt', customerExtraAmount, isBold: true),
+                            if (customerCreditBalance > 0)
+                              _PrintTotalRow('Credit Balance', customerCreditBalance, isBold: true),
                           ],
-                          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('----------------------------------------', maxLines: 1, overflow: TextOverflow.clip, style: TextStyle(color: Colors.grey))),
-                          Text('Billed by: ${printData['billed_by']?['name'] ?? printData['billed_by_name'] ?? printData['billed_by'] ?? 'Unknown'}', style: const TextStyle(fontSize: 11)),
-                          const SizedBox(height: 16),
-                          const Center(child: Text('Thank you for your business!', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                          const SizedBox(height: 24),
                         ],
                       ),
                     ),

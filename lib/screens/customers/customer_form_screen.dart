@@ -37,6 +37,21 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     _locationCtrl = TextEditingController(text: c?.location ?? '');
     _creditAmountCtrl = TextEditingController(text: c?.creditBalance.toString() ?? '0');
     _extraAmountCtrl = TextEditingController(text: c?.extraAmount.toString() ?? '0');
+
+    // Add listeners for mutual exclusion between Credit Balance and Extra Amount
+    _creditAmountCtrl.addListener(() {
+      final creditValue = double.tryParse(_creditAmountCtrl.text) ?? 0;
+      if (creditValue > 0 && _extraAmountCtrl.text != '0') {
+        _extraAmountCtrl.text = '0';
+      }
+    });
+
+    _extraAmountCtrl.addListener(() {
+      final extraValue = double.tryParse(_extraAmountCtrl.text) ?? 0;
+      if (extraValue > 0 && _creditAmountCtrl.text != '0') {
+        _creditAmountCtrl.text = '0';
+      }
+    });
   }
 
   @override

@@ -65,10 +65,29 @@ class CustomerProvider with ChangeNotifier {
 
   Future<bool> update(int id, Map<String, dynamic> data) async {
     try {
-      await ApiService.post('/customers/$id', body: data);
+      // Fetch existing customer data first to include required fields
+      final existingCustomer = await getCustomer(id);
+      if (existingCustomer == null) {
+        print('Customer $id not found');
+        return false;
+      }
+
+      // Merge existing data with new data
+      final updateData = {
+        'name': existingCustomer['name'] ?? '',
+        'shop_name': existingCustomer['shop_name'] ?? '',
+        'mobile': existingCustomer['mobile'] ?? '',
+        'location': existingCustomer['location'] ?? '',
+        ...data,
+      };
+
+      print('Updating customer $id with data: $updateData');
+      final response = await ApiService.post('/customers/$id', body: updateData);
+      print('Update response: $response');
       await fetch();
       return true;
     } catch (e) {
+      print('Customer update error: $e');
       _error = e.toString();
       notifyListeners();
       return false;
