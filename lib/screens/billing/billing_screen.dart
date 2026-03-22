@@ -53,7 +53,59 @@ class _BillingScreenState extends State<BillingScreen> {
       builder: (_) => const _ProductSearchSheet(),
     );
     if (product != null && mounted) {
-      context.read<BillingProvider>().addItem(product);
+      final qtyCtrl = TextEditingController(text: '1');
+      final priceCtrl = TextEditingController();
+
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('Add ${product.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: qtyCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Quantity',
+                  prefixIcon: Icon(Icons.numbers_rounded),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: priceCtrl,
+                decoration: InputDecoration(
+                  labelText: 'Custom Price',
+                  hintText: 'Default: ${_currency.format(product.price)}',
+                  prefixText: '₹ ',
+                  prefixIcon: const Icon(Icons.payments_rounded),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final qty = double.tryParse(qtyCtrl.text) ?? 1;
+                final customPrice = double.tryParse(priceCtrl.text);
+                context.read<BillingProvider>().addItem(
+                  product,
+                  quantity: qty,
+                  customPrice: customPrice,
+                );
+                Navigator.pop(ctx);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -263,7 +315,7 @@ class _BillingScreenState extends State<BillingScreen> {
 
     StringBuffer receipt = StringBuffer();
     receipt.writeln('                   STAR CHIPS                   ');
-    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln('                 --- Manjeri ---                ');
     receipt.writeln();
     receipt.writeln('Date: ${dateStr.padLeft(30)}');
     receipt.writeln();
@@ -279,7 +331,7 @@ class _BillingScreenState extends State<BillingScreen> {
     receipt.writeln(
       '${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}',
     );
-    receipt.writeln('--------------------------------------');
+    receipt.writeln('----------------------------------');
 
     for (var item in items) {
       final name = item.product.name;
@@ -298,7 +350,7 @@ class _BillingScreenState extends State<BillingScreen> {
       );
     }
 
-    receipt.writeln('--------------------------------------');
+    receipt.writeln('----------------------------------');
     receipt.writeln();
     receipt.writeln(
       '${'TOTAL'.padRight(30)} ${_currency.format(billing.total).padLeft(10)}',
@@ -310,86 +362,65 @@ class _BillingScreenState extends State<BillingScreen> {
       );
     }
 
+    // Show customer-based credit/extra amounts from customer table
+    if (billing.customerCreditBalance > 0 || billing.customerExtraAmount > 0) {
+      receipt.writeln('----------------------------------');
+      if (billing.customerCreditBalance > 0) {
+        receipt.writeln(
+          '${'Old Credit Bal:'.padRight(30)} ${_currency.format(billing.customerCreditBalance).padLeft(10)}',
+        );
+      }
+      if (billing.customerExtraAmount > 0) {
+        receipt.writeln(
+          '${'Old Extra Amt:'.padRight(30)} ${_currency.format(billing.customerExtraAmount).padLeft(10)}',
+        );
+      }
+    }
+
     // Calculate and show Credit/Extra
     if (billing.customerCreditBalance > 0 || billing.customerExtraAmount > 0) {
-      receipt.writeln('--------------------------------------');
+      receipt.writeln('----------------------------------');
 
       if (billing.customerCreditBalance > 0) {
+        // Credit Balance: total owed = bill total + old credit
         final totalWithCredit = billing.total + billing.customerCreditBalance;
-        final remainingCredit = totalWithCredit > billing.collectedAmount
-            ? totalWithCredit - billing.collectedAmount
-            : 0.0;
-        final excessCollection = billing.collectedAmount > totalWithCredit
-            ? billing.collectedAmount - totalWithCredit
-            : 0.0;
+        final netBalance = billing.collectedAmount - totalWithCredit;
 
-        if (billing.collectedAmount >= totalWithCredit) {
-          if (excessCollection > 0) {
-            receipt.writeln(
-              '${'Total Extra Amt'.padRight(30)} ${_currency.format(excessCollection).padLeft(10)}',
-            );
-          } else {
-            receipt.writeln(
-              '${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}',
-            );
-          }
+        if (netBalance > 0) {
+          receipt.writeln(
+            '${'Total Extra Amt'.padRight(30)} ${_currency.format(netBalance).padLeft(10)}',
+          );
+        } else if (netBalance == 0) {
+          receipt.writeln(
+            '${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}',
+          );
         } else {
           receipt.writeln(
-            '${'Total Credit'.padRight(30)} ${_currency.format(remainingCredit).padLeft(10)}',
+            '${'Total Credit'.padRight(30)} ${_currency.format(netBalance.abs()).padLeft(10)}',
           );
         }
       } else if (billing.customerExtraAmount > 0) {
-        final adjustedTotal = billing.total > billing.customerExtraAmount
-            ? billing.total - billing.customerExtraAmount
-            : 0.0;
-        final remainingCredit = adjustedTotal > billing.collectedAmount
-            ? adjustedTotal - billing.collectedAmount
-            : 0.0;
+        // Extra Amount: netBalance = extraAmt + collected - total
+        final netBalance = billing.customerExtraAmount + billing.collectedAmount - billing.total;
 
-        if (adjustedTotal == 0) {
+        if (netBalance > 0) {
+          receipt.writeln(
+            '${'Total Extra Amt'.padRight(30)} ${_currency.format(netBalance).padLeft(10)}',
+          );
+        } else if (netBalance == 0) {
           receipt.writeln(
             '${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}',
-          );
-        } else if (remainingCredit > 0) {
-          receipt.writeln(
-            '${'Total Credit'.padRight(30)} ${_currency.format(remainingCredit).padLeft(10)}',
           );
         } else {
-          // Bill fully paid by extra + collected, show Total Credit = 0
           receipt.writeln(
-            '${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}',
-          );
-        }
-      } else {
-        // Case 3: Customer has no Credit Balance and no Extra Amount (normal case)
-        final remainingCredit = billing.total > billing.collectedAmount
-            ? billing.total - billing.collectedAmount
-            : 0.0;
-        final excessCollection = billing.collectedAmount > billing.total
-            ? billing.collectedAmount - billing.total
-            : 0.0;
-
-        if (remainingCredit > 0) {
-          // Still owe money - show Total Credit
-          receipt.writeln(
-            '${'Total Credit'.padRight(30)} ${_currency.format(remainingCredit).padLeft(10)}',
-          );
-        } else if (excessCollection > 0) {
-          // Overpaid - show Total Extra Amt
-          receipt.writeln(
-            '${'Total Extra Amt'.padRight(30)} ${_currency.format(excessCollection).padLeft(10)}',
-          );
-        } else {
-          // Exactly paid - show Total Credit = 0
-          receipt.writeln(
-            '${'Total Credit'.padRight(30)} ${_currency.format(0).padLeft(10)}',
+            '${'Total Credit'.padRight(30)} ${_currency.format(netBalance.abs()).padLeft(10)}',
           );
         }
       }
     }
 
     receipt.writeln();
-    receipt.writeln('---------------------------------------');
+    receipt.writeln('-----------------------------------');
     receipt.writeln();
     receipt.writeln('    Thank you !');
 
@@ -967,12 +998,19 @@ class _BillingScreenState extends State<BillingScreen> {
 
     // Header
     bytes += generator.text(
-      'STAR CHIPS BILL RECEIPT',
+      'STAR CHIPS',
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,
         width: PosTextSize.size2,
         height: PosTextSize.size2,
+      ),
+    );
+    bytes += generator.text(
+      'Manjeri',
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
       ),
     );
     bytes += generator.emptyLines(1);
@@ -1125,179 +1163,91 @@ class _BillingScreenState extends State<BillingScreen> {
       ]);
     }
 
-    // Calculate for Credit Balance customers
-    final totalWithCredit = total + customerCreditBalance;
-    final excessCollection = collectedAmount > totalWithCredit
-        ? collectedAmount - totalWithCredit
-        : 0.0;
-    final remainingCredit = totalWithCredit > collectedAmount
-        ? totalWithCredit - collectedAmount
-        : 0.0;
-
-    // Calculate for Extra Amount customers - Extra reduces the bill
-    final adjustedTotal = customerExtraAmount > 0 && total > customerExtraAmount
-        ? total - customerExtraAmount
-        : (customerExtraAmount > 0 && total <= customerExtraAmount
-              ? 0.0
-              : total);
-    final extraRemainingCredit = customerExtraAmount > 0 && adjustedTotal > 0
-        ? adjustedTotal - collectedAmount
-        : 0.0;
+    // 3. Customer-based credit/extra amounts from customer table
+    if (customerCreditBalance > 0 || customerExtraAmount > 0) {
+      bytes += generator.hr(ch: '-');
+      if (customerCreditBalance > 0) {
+        bytes += generator.row([
+          PosColumn(
+            text: 'Old Credit Bal:',
+            width: 6,
+            styles: const PosStyles(bold: true),
+          ),
+          PosColumn(text: '', width: 2),
+          PosColumn(
+            text: formatPrintCurrency(customerCreditBalance),
+            width: 4,
+            styles: const PosStyles(bold: true, align: PosAlign.right),
+          ),
+        ]);
+        
+      }
+      if (customerExtraAmount > 0) {
+        bytes += generator.row([
+          PosColumn(
+            text: 'Old Extra Amt:',
+            width: 6,
+            styles: const PosStyles(bold: true),
+          ),
+          PosColumn(text: '', width: 2),
+          PosColumn(
+            text: formatPrintCurrency(customerExtraAmount),
+            width: 4,
+            styles: const PosStyles(bold: true, align: PosAlign.right),
+          ),
+        ]);
+      }
+    }
 
     // 3. Show Total Credit or Total Extra based on customer OB balance
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
       bytes += generator.hr(ch: '-');
 
       if (customerCreditBalance > 0) {
-        // Customer has Credit Balance (OB)
-        if (collectedAmount >= totalWithCredit) {
-          // Collected covers everything
-          if (excessCollection > 0) {
-            bytes += generator.row([
-              PosColumn(
-                text: 'Total Extra Amt',
-                width: 6,
-                styles: const PosStyles(bold: true),
-              ),
-              PosColumn(text: '', width: 2),
-              PosColumn(
-                text: formatPrintCurrency(excessCollection),
-                width: 4,
-                styles: const PosStyles(bold: true, align: PosAlign.right),
-              ),
-            ]);
-          } else {
-            bytes += generator.row([
-              PosColumn(
-                text: 'Total Credit',
-                width: 6,
-                styles: const PosStyles(bold: true),
-              ),
-              PosColumn(text: '', width: 2),
-              PosColumn(
-                text: formatPrintCurrency(0),
-                width: 4,
-                styles: const PosStyles(bold: true, align: PosAlign.right),
-              ),
-            ]);
-          }
-        } else {
-          // Still has remaining credit
+        // Credit Balance: total owed = bill total + old credit
+        final totalWithCredit = total + customerCreditBalance;
+        final netBalance = collectedAmount - totalWithCredit;
+
+        if (netBalance > 0) {
           bytes += generator.row([
-            PosColumn(
-              text: 'Total Credit',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
+            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
             PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(remainingCredit),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
+            PosColumn(text: formatPrintCurrency(netBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
+        } else if (netBalance == 0) {
+          bytes += generator.row([
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          ]);
+        } else {
+          bytes += generator.row([
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: '', width: 2),
+            PosColumn(text: formatPrintCurrency(netBalance.abs()), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
           ]);
         }
       } else if (customerExtraAmount > 0) {
-        // Customer has Extra Amount (OB) - Extra reduces the bill
-        if (adjustedTotal == 0) {
-          // Extra covers entire bill
-          bytes += generator.row([
-            PosColumn(
-              text: 'Total Credit',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
-            PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(0),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
-          ]);
-        } else if (extraRemainingCredit > 0) {
-          // Still owe some after using extra
-          bytes += generator.row([
-            PosColumn(
-              text: 'Total Credit',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
-            PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(extraRemainingCredit),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
-          ]);
-        } else {
-          // Bill fully paid by extra + collected, show Total Credit = 0
-          bytes += generator.row([
-            PosColumn(
-              text: 'Total Credit',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
-            PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(0),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
-          ]);
-        }
-      } else {
-        // Case 3: Customer has no Credit Balance and no Extra Amount (normal case)
-        final normalRemainingCredit = total > collectedAmount
-            ? total - collectedAmount
-            : 0.0;
-        final normalExcessCollection = collectedAmount > total
-            ? collectedAmount - total
-            : 0.0;
+        // Extra Amount: netBalance = extraAmt + collected - total
+        final netBalance = customerExtraAmount + collectedAmount - total;
 
-        if (normalRemainingCredit > 0) {
-          // Still owe money - show Total Credit
+        if (netBalance > 0) {
           bytes += generator.row([
-            PosColumn(
-              text: 'Total Credit',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
+            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
             PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(normalRemainingCredit),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
+            PosColumn(text: formatPrintCurrency(netBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
           ]);
-        } else if (normalExcessCollection > 0) {
-          // Overpaid - show Total Extra Amt
+        } else if (netBalance == 0) {
           bytes += generator.row([
-            PosColumn(
-              text: 'Total Extra Amt',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
             PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(normalExcessCollection),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
+            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
           ]);
         } else {
-          // Exactly paid - show Total Credit = 0
           bytes += generator.row([
-            PosColumn(
-              text: 'Total Credit',
-              width: 6,
-              styles: const PosStyles(bold: true),
-            ),
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
             PosColumn(text: '', width: 2),
-            PosColumn(
-              text: formatPrintCurrency(0),
-              width: 4,
-              styles: const PosStyles(bold: true, align: PosAlign.right),
-            ),
+            PosColumn(text: formatPrintCurrency(netBalance.abs()), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
           ]);
         }
       }
@@ -1841,193 +1791,11 @@ class _BillingScreenState extends State<BillingScreen> {
                             () {
                               // Case 1: Customer has Credit Balance (OB)
                               if (billing.customerCreditBalance > 0) {
-                                final totalWithCredit =
-                                    billing.total +
-                                    billing.customerCreditBalance;
-                                final excessCollection =
-                                    billing.collectedAmount > totalWithCredit
-                                    ? billing.collectedAmount - totalWithCredit
-                                    : 0.0;
-                                final remainingCredit =
-                                    totalWithCredit > billing.collectedAmount
-                                    ? totalWithCredit - billing.collectedAmount
-                                    : 0.0;
+                                // Credit Balance: total owed = bill total + old credit
+                                final totalWithCredit = billing.total + billing.customerCreditBalance;
+                                final netBalance = billing.collectedAmount - totalWithCredit;
 
-                                if (billing.collectedAmount >=
-                                    totalWithCredit) {
-                                  if (excessCollection > 0) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.green.withOpacity(0.3),
-                                        ),
-                                      ),
-                                      child: _SummaryRow(
-                                        'Total Extra Amt',
-                                        _currency.format(excessCollection),
-                                        color: Colors.green[700],
-                                        isBold: true,
-                                      ),
-                                    );
-                                  } else {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.green.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(
-                                          color: Colors.green.withOpacity(0.3),
-                                        ),
-                                      ),
-                                      child: _SummaryRow(
-                                        'Total Credit',
-                                        _currency.format(0),
-                                        color: Colors.green[700],
-                                        isBold: true,
-                                      ),
-                                    );
-                                  }
-                                }
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(
-                                      color: Colors.red.withOpacity(0.3),
-                                    ),
-                                  ),
-                                  child: _SummaryRow(
-                                    'Total Credit',
-                                    _currency.format(remainingCredit),
-                                    color: Colors.red[700],
-                                    isBold: true,
-                                  ),
-                                );
-                              }
-                              // Case 2: Customer has Extra Amount (OB) - Extra reduces the bill
-                              else if (billing.customerExtraAmount > 0) {
-                                final adjustedTotal =
-                                    billing.total > billing.customerExtraAmount
-                                    ? billing.total -
-                                          billing.customerExtraAmount
-                                    : 0.0;
-                                final remainingCredit =
-                                    adjustedTotal > billing.collectedAmount
-                                    ? adjustedTotal - billing.collectedAmount
-                                    : 0.0;
-
-                                if (adjustedTotal == 0) {
-                                  // Extra covers entire bill
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.green.withOpacity(0.3),
-                                      ),
-                                    ),
-                                    child: _SummaryRow(
-                                      'Total Credit',
-                                      _currency.format(0),
-                                      color: Colors.green[700],
-                                      isBold: true,
-                                    ),
-                                  );
-                                } else if (remainingCredit > 0) {
-                                  // Still owe some after using extra
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.red.withOpacity(0.3),
-                                      ),
-                                    ),
-                                    child: _SummaryRow(
-                                      'Total Credit',
-                                      _currency.format(remainingCredit),
-                                      color: Colors.red[700],
-                                      isBold: true,
-                                    ),
-                                  );
-                                } else {
-                                  // Bill fully paid by extra + collected, show Total Credit = 0
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.green.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.green.withOpacity(0.3),
-                                      ),
-                                    ),
-                                    child: _SummaryRow(
-                                      'Total Credit',
-                                      _currency.format(0),
-                                      color: Colors.green[700],
-                                      isBold: true,
-                                    ),
-                                  );
-                                }
-                              }
-                              // Case 3: Customer has no Credit Balance and no Extra Amount (normal case)
-                              else {
-                                final remainingCredit =
-                                    billing.total > billing.collectedAmount
-                                    ? billing.total - billing.collectedAmount
-                                    : 0.0;
-                                final excessCollection =
-                                    billing.collectedAmount > billing.total
-                                    ? billing.collectedAmount - billing.total
-                                    : 0.0;
-
-                                if (remainingCredit > 0) {
-                                  // Still owe money - show Total Credit
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: Colors.red.withOpacity(0.3),
-                                      ),
-                                    ),
-                                    child: _SummaryRow(
-                                      'Total Credit',
-                                      _currency.format(remainingCredit),
-                                      color: Colors.red[700],
-                                      isBold: true,
-                                    ),
-                                  );
-                                } else if (excessCollection > 0) {
-                                  // Overpaid - show Total Extra Amt
+                                if (netBalance > 0) {
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -2042,13 +1810,12 @@ class _BillingScreenState extends State<BillingScreen> {
                                     ),
                                     child: _SummaryRow(
                                       'Total Extra Amt',
-                                      _currency.format(excessCollection),
+                                      _currency.format(netBalance),
                                       color: Colors.green[700],
                                       isBold: true,
                                     ),
                                   );
-                                } else {
-                                  // Exactly paid - show Total Credit = 0
+                                } else if (netBalance == 0) {
                                   return Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -2065,6 +1832,159 @@ class _BillingScreenState extends State<BillingScreen> {
                                       'Total Credit',
                                       _currency.format(0),
                                       color: Colors.green[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                } else {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.red.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Credit',
+                                      _currency.format(netBalance.abs()),
+                                      color: Colors.red[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                }
+                              }
+                              // Case 2: Customer has Extra Amount (OB)
+                              else if (billing.customerExtraAmount > 0) {
+                                // Extra Amount: netBalance = extraAmt + collected - total
+                                final netBalance = billing.customerExtraAmount + billing.collectedAmount - billing.total;
+
+                                if (netBalance > 0) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.green.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Extra Amt',
+                                      _currency.format(netBalance),
+                                      color: Colors.green[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                } else if (netBalance == 0) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.green.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Credit',
+                                      _currency.format(0),
+                                      color: Colors.green[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                } else {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.red.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Credit',
+                                      _currency.format(netBalance.abs()),
+                                      color: Colors.red[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                }
+                              }
+                              // Case 3: Customer has no Credit Balance and no Extra Amount (normal case)
+                              else {
+                                final netBalance = billing.collectedAmount - billing.total;
+
+                                if (netBalance > 0) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.green.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Extra Amt',
+                                      _currency.format(netBalance),
+                                      color: Colors.green[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                } else if (netBalance == 0) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.green.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Credit',
+                                      _currency.format(0),
+                                      color: Colors.green[700],
+                                      isBold: true,
+                                    ),
+                                  );
+                                } else {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: Colors.red.withOpacity(0.3),
+                                      ),
+                                    ),
+                                    child: _SummaryRow(
+                                      'Total Credit',
+                                      _currency.format(netBalance.abs()),
+                                      color: Colors.red[700],
                                       isBold: true,
                                     ),
                                   );
@@ -2378,38 +2298,26 @@ class _ProductSearchSheet extends StatefulWidget {
 }
 
 class _ProductSearchSheetState extends State<_ProductSearchSheet> {
-  final _ctrl = TextEditingController();
-  List<Product> _results = [];
-  bool _loading = false;
+  List<Product> _allProducts = [];
+  bool _loading = true;
   final _currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
-  Future<void> _search(String q) async {
-    if (q.isEmpty) {
-      setState(() => _results = []);
-      return;
-    }
-    setState(() => _loading = true);
-    final results = await context.read<ProductProvider>().search(q);
-    // Sort: items starting with query first, then alphabetically
-    final query = q.toLowerCase();
-    results.sort((a, b) {
-      final aStarts = a.name.toLowerCase().startsWith(query);
-      final bStarts = b.name.toLowerCase().startsWith(query);
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-    if (mounted)
-      setState(() {
-        _results = results;
-        _loading = false;
-      });
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
   }
 
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  Future<void> _loadProducts() async {
+    final products = await context.read<ProductProvider>().getAllProducts();
+    // Sort alphabetically
+    products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (mounted) {
+      setState(() {
+        _allProducts = products;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -2436,20 +2344,26 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
             ),
             Padding(
               padding: const EdgeInsets.all(24),
-              child: TextField(
-                controller: _ctrl,
-                decoration: const InputDecoration(
-                  hintText: 'Search products...',
-                  prefixIcon: Icon(Icons.search_rounded),
-                ),
-                autofocus: true,
-                onChanged: _search,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.inventory_2_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Select Product',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _results.isEmpty && _ctrl.text.isNotEmpty
+                  : _allProducts.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -2473,9 +2387,9 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                   : ListView.builder(
                       controller: scrollCtrl,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _results.length,
+                      itemCount: _allProducts.length,
                       itemBuilder: (_, i) {
-                        final p = _results[i];
+                        final p = _allProducts[i];
                         return Card(
                           elevation: 0,
                           color: Colors.grey[50],

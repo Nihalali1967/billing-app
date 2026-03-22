@@ -79,12 +79,18 @@ class BillingProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  void addItem(Product product) {
+  void addItem(Product product, {double quantity = 1, double? customPrice}) {
     final existing = _items.indexWhere((e) => e.product.id == product.id);
     if (existing >= 0) {
-      _items[existing].quantity++;
+      _items[existing].quantity += quantity;
     } else {
-      _items.add(BillingItem(product: product, unitPrice: product.price));
+      _items.add(BillingItem(
+        product: product, 
+        unitPrice: product.price,
+        quantity: quantity,
+        customPrice: customPrice,
+        isCustomPrice: customPrice != null,
+      ));
     }
     notifyListeners();
   }

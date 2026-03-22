@@ -643,7 +643,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
 
     // Header
     receipt.writeln('                   STAR CHIPS                   ');
-    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln('                 --- Manjeri ---                ');
     receipt.writeln();
 
     // Bill info row
@@ -690,7 +690,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     receipt.writeln();
 
     // Separator line
-    receipt.writeln('--------------------------------------');
+    receipt.writeln('----------------------------------');
 
     // Items header - aligned columns (Item, Price, Qty, Amount)
     receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
@@ -713,7 +713,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
       );
     }
 
-    receipt.writeln('--------------------------------------');
+    receipt.writeln('----------------------------------');
     receipt.writeln();
 
     // 1. TOTAL first
@@ -733,7 +733,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
 
     // 3. Show Total Credit or Total Extra based on customer OB balance
     if (customerCreditBalance > 0 || customerExtraAmount > 0) {
-      receipt.writeln('--------------------------------------');
+      receipt.writeln('----------------------------------');
       
       if (customerCreditBalance > 0) {
         // Customer has Credit Balance (OB)
@@ -770,7 +770,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     }
 
     receipt.writeln();
-    receipt.writeln('---------------------------------------');
+    receipt.writeln('-----------------------------------');
     receipt.writeln();
     receipt.writeln('Billed by: $billedBy');
     receipt.writeln();
@@ -1412,7 +1412,7 @@ class _BillPreviewScreenState extends State<BillPreviewScreen> {
     
     // Header
     bytes += generator.text(
-      'STAR CHIPS BILL RECEIPT',
+      'STAR CHIPS Manjeri',
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,

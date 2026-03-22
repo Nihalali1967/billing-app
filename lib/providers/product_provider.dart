@@ -98,4 +98,15 @@ class ProductProvider with ChangeNotifier {
       return [];
     }
   }
+
+  Future<List<Product>> getAllProducts() async {
+    try {
+      final response = await ApiService.get('/products', queryParams: {'per_page': '1000'});
+      return (response['data'] as List)
+          .map((e) => Product.fromJson(e))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
 }

@@ -268,7 +268,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
     // Header
     receipt.writeln('                   STAR CHIPS                   ');
-    receipt.writeln('                 --- Receipt ---                ');
+    receipt.writeln('                --- Manjeri ---                ');
     receipt.writeln();
 
     // Bill info row
@@ -287,7 +287,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     receipt.writeln();
 
     // Separator line
-    receipt.writeln('--------------------------------');
+    receipt.writeln('----------------------------');
 
     // Items header - aligned columns (Item, Price, Qty, Amount)
     receipt.writeln('${'Item'.padRight(12)} ${'Price'.padLeft(10)} ${'Qty'.padLeft(8)} ${'Amount'.padLeft(10)}');
@@ -310,7 +310,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
       );
     }
 
-    receipt.writeln('--------------------------------');
+    receipt.writeln('----------------------------');
     receipt.writeln();
 
     // 1. TOTAL first
@@ -322,7 +322,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
     // 3. Customer-based calculations from customer table
     if (customerExtraAmount > 0 || customerCreditBalance > 0) {
-      receipt.writeln('--------------------------------');
+      receipt.writeln('----------------------------');
       if (customerExtraAmount > 0) {
         receipt.writeln('${'Total Extra Amt'.padRight(30)} ${_currency.format(customerExtraAmount).padLeft(10)}');
       }
@@ -337,7 +337,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     }
 
     receipt.writeln();
-    receipt.writeln('--------------------------------');
+    receipt.writeln('----------------------------');
     receipt.writeln();
     receipt.writeln('Billed by: $billedBy');
     receipt.writeln();
@@ -639,12 +639,19 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
     // Header
     bytes += generator.text(
-      'STAR CHIPS BILL RECEIPT',
+      'STAR CHIPS',
       styles: const PosStyles(
         align: PosAlign.center,
         bold: true,
         height: PosTextSize.size2,
         width: PosTextSize.size2,
+      ),
+    );
+    bytes += generator.text(
+      'Manjeri',
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
       ),
     );
     bytes += generator.emptyLines(1);
@@ -1289,7 +1296,7 @@ bytes += generator.hr();
                         controller: ctrl,
                         children: [
                           Center(child: Text('STAR CHIPS', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 2))),
-                          const Center(child: Text('--- Receipt ---', style: TextStyle(color: Colors.grey))),
+                          const Center(child: Text('--- Manjeri ---', style: TextStyle(color: Colors.grey))),
                           const SizedBox(height: 16),
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Bill No:'), Text(printData['bill_number'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold))]),
                           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Date:'), Text(printData['date'] ?? '')]),
