@@ -88,6 +88,18 @@ class BillProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> updateBill(int id, Map<String, dynamic> data) async {
+    try {
+      await ApiService.put('/bills/$id', body: data);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> deleteBill(int id) async {
     try {
       await ApiService.delete('/bills/$id');

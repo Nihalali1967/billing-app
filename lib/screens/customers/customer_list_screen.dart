@@ -314,54 +314,6 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                           ),
               ),
               
-              if (provider.lastPage > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 20,
-                        offset: const Offset(0, -5),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left_rounded),
-                          style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surface),
-                          onPressed: provider.currentPage > 1
-                              ? () => provider.fetch(search: _searchController.text.trim(), page: provider.currentPage - 1)
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Page ${provider.currentPage} of ${provider.lastPage}',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right_rounded),
-                          style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surface),
-                          onPressed: provider.currentPage < provider.lastPage
-                              ? () => provider.fetch(search: _searchController.text.trim(), page: provider.currentPage + 1)
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                ).animate().slideY(begin: 1, end: 0),
             ],
           ),
         ],

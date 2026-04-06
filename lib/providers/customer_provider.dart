@@ -6,33 +6,25 @@ class CustomerProvider with ChangeNotifier {
   List<Customer> _customers = [];
   bool _isLoading = false;
   String? _error;
-  int _currentPage = 1;
-  int _lastPage = 1;
   int _total = 0;
 
   List<Customer> get customers => _customers;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  int get currentPage => _currentPage;
-  int get lastPage => _lastPage;
   int get total => _total;
-  bool get hasMore => _currentPage < _lastPage;
 
-  Future<void> fetch({String? search, int page = 1}) async {
+  Future<void> fetch({String? search}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
     try {
-      final params = <String, String>{'page': page.toString(), 'per_page': '15'};
+      final params = <String, String>{'per_page': '1000'};
       if (search != null && search.isNotEmpty) params['search'] = search;
       final response = await ApiService.get('/customers', queryParams: params);
       _customers = (response['data'] as List)
           .map((e) => Customer.fromJson(e))
           .toList();
-      final meta = response['meta'] ?? {};
-      _currentPage = meta['current_page'] ?? 1;
-      _lastPage = meta['last_page'] ?? 1;
-      _total = meta['total'] ?? _customers.length;
+      _total = _customers.length;
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -103,6 +95,19 @@ class CustomerProvider with ChangeNotifier {
       _error = e.toString();
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<List<Customer>> fetchAll() async {
+    try {
+      final response = await ApiService.get('/customers', queryParams: {'per_page': '1000'});
+      final data = response['data'];
+      if (data is List) {
+        return data.map((e) => Customer.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      return [];
     }
   }
 

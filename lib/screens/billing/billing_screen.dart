@@ -46,73 +46,42 @@ class _BillingScreenState extends State<BillingScreen> {
   }
 
   Future<void> _addProduct() async {
-    final product = await showModalBottomSheet<Product>(
+    final products = await showModalBottomSheet<List<Product>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const _ProductSearchSheet(),
+      builder: (_) => _ProductSearchSheet(
+        initialSelectedIds: context.read<BillingProvider>().items.map((e) => e.product.id).toSet(),
+      ),
     );
-    if (product != null && mounted) {
-      final qtyCtrl = TextEditingController(text: '1');
-      final priceCtrl = TextEditingController();
-
-      await showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Text('Add ${product.name}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: qtyCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Quantity',
-                  prefixIcon: Icon(Icons.numbers_rounded),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: priceCtrl,
-                decoration: InputDecoration(
-                  labelText: 'Custom Price',
-                  hintText: 'Default: ${_currency.format(product.price)}',
-                  prefixText: '₹ ',
-                  prefixIcon: const Icon(Icons.payments_rounded),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final qty = double.tryParse(qtyCtrl.text) ?? 1;
-                final customPrice = double.tryParse(priceCtrl.text);
-                context.read<BillingProvider>().addItem(
-                  product,
-                  quantity: qty,
-                  customPrice: customPrice,
-                );
-                Navigator.pop(ctx);
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      );
+    if (products != null && mounted) {
+      final billing = context.read<BillingProvider>();
+      final existingIds = billing.items.map((e) => e.product.id).toSet();
+      // Only add newly selected products (not already in cart)
+      for (final product in products) {
+        if (!existingIds.contains(product.id)) {
+          billing.addItem(product);
+        }
+      }
+      // Remove deselected products (were in cart but not in returned list)
+      final returnedIds = products.map((p) => p.id).toSet();
+      final toRemove = billing.items
+          .asMap()
+          .entries
+          .where((e) => existingIds.contains(e.value.product.id) && !returnedIds.contains(e.value.product.id))
+          .map((e) => e.key)
+          .toList()
+          .reversed;
+      for (final index in toRemove) {
+        billing.removeItem(index);
+      }
     }
   }
 
   void _editItem(int index) {
     final billing = context.read<BillingProvider>();
     final item = billing.items[index];
-    final qtyCtrl = TextEditingController(text: item.quantity.toString());
+    final qtyCtrl = TextEditingController(text: item.quantity == item.quantity.toInt() ? item.quantity.toInt().toString() : item.quantity.toString());
     final priceCtrl = TextEditingController(
       text: item.customPrice?.toString() ?? '',
     );
@@ -132,6 +101,7 @@ class _BillingScreenState extends State<BillingScreen> {
                 prefixIcon: Icon(Icons.numbers_rounded),
               ),
               keyboardType: TextInputType.number,
+              autofocus: true,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -1584,9 +1554,14 @@ class _BillingScreenState extends State<BillingScreen> {
                                 ),
                               ],
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(20),
+                                onTap: () => _editItem(index),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Row(
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.all(12),
@@ -1666,47 +1641,29 @@ class _BillingScreenState extends State<BillingScreen> {
                                         ),
                                       ),
                                       const SizedBox(height: 8),
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          InkWell(
-                                            onTap: () => _editItem(index),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(4),
-                                              child: Icon(
-                                                Icons.edit_rounded,
-                                                size: 18,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
+                                      InkWell(
+                                        onTap: () =>
+                                            billing.removeItem(index),
+                                        borderRadius: BorderRadius.circular(
+                                          8,
+                                        ),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(4),
+                                          child: Icon(
+                                            Icons
+                                                .remove_circle_outline_rounded,
+                                            size: 18,
+                                            color: Colors.red[400],
                                           ),
-                                          const SizedBox(width: 8),
-                                          InkWell(
-                                            onTap: () =>
-                                                billing.removeItem(index),
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(4),
-                                              child: Icon(
-                                                Icons
-                                                    .remove_circle_outline_rounded,
-                                                size: 18,
-                                                color: Colors.red[400],
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ),
                                     ],
                                   ),
                                 ],
                               ),
                             ),
+                          ),
+                          ),
                           ).animate().fadeIn().slideX(begin: 0.1);
                         },
                       ),
@@ -2155,30 +2112,49 @@ class _CustomerSearchSheet extends StatefulWidget {
 
 class _CustomerSearchSheetState extends State<_CustomerSearchSheet> {
   final _ctrl = TextEditingController();
+  List<Customer> _allCustomers = [];
   List<Customer> _results = [];
-  bool _loading = false;
+  bool _loading = true;
 
-  Future<void> _search(String q) async {
+  @override
+  void initState() {
+    super.initState();
+    _loadAllCustomers();
+  }
+
+  Future<void> _loadAllCustomers() async {
+    setState(() => _loading = true);
+    final results = await context.read<CustomerProvider>().fetchAll();
+    if (mounted) {
+      results.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      setState(() {
+        _allCustomers = results;
+        _results = results;
+        _loading = false;
+      });
+    }
+  }
+
+  void _search(String q) {
     if (q.isEmpty) {
-      setState(() => _results = []);
+      setState(() => _results = _allCustomers);
       return;
     }
-    setState(() => _loading = true);
-    final results = await context.read<CustomerProvider>().search(q);
-    // Sort: items starting with query first, then alphabetically
     final query = q.toLowerCase();
-    results.sort((a, b) {
+    final filtered = _allCustomers.where((c) {
+      return c.name.toLowerCase().contains(query) ||
+          (c.shopName?.toLowerCase().contains(query) ?? false) ||
+          c.mobile.contains(query);
+    }).toList();
+    // Sort: items starting with query first, then alphabetically
+    filtered.sort((a, b) {
       final aStarts = a.name.toLowerCase().startsWith(query);
       final bStarts = b.name.toLowerCase().startsWith(query);
       if (aStarts && !bStarts) return -1;
       if (!aStarts && bStarts) return 1;
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
-    if (mounted)
-      setState(() {
-        _results = results;
-        _loading = false;
-      });
+    setState(() => _results = filtered);
   }
 
   @override
@@ -2224,7 +2200,7 @@ class _CustomerSearchSheetState extends State<_CustomerSearchSheet> {
             Expanded(
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
-                  : _results.isEmpty && _ctrl.text.isNotEmpty
+                  : _results.isEmpty
                   ? Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -2291,7 +2267,8 @@ class _CustomerSearchSheetState extends State<_CustomerSearchSheet> {
 }
 
 class _ProductSearchSheet extends StatefulWidget {
-  const _ProductSearchSheet();
+  final Set<int> initialSelectedIds;
+  const _ProductSearchSheet({this.initialSelectedIds = const {}});
 
   @override
   State<_ProductSearchSheet> createState() => _ProductSearchSheetState();
@@ -2299,6 +2276,7 @@ class _ProductSearchSheet extends StatefulWidget {
 
 class _ProductSearchSheetState extends State<_ProductSearchSheet> {
   List<Product> _allProducts = [];
+  late final Set<int> _selectedIds = Set<int>.from(widget.initialSelectedIds);
   bool _loading = true;
   final _currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
 
@@ -2310,8 +2288,13 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
 
   Future<void> _loadProducts() async {
     final products = await context.read<ProductProvider>().getAllProducts();
-    // Sort alphabetically
-    products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    products.sort((a, b) {
+      final aSelected = widget.initialSelectedIds.contains(a.id);
+      final bSelected = widget.initialSelectedIds.contains(b.id);
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
     if (mounted) {
       setState(() {
         _allProducts = products;
@@ -2320,43 +2303,76 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
     }
   }
 
+  void _toggleProduct(Product p) {
+    setState(() {
+      if (_selectedIds.contains(p.id)) {
+        _selectedIds.remove(p.id);
+      } else {
+        _selectedIds.add(p.id);
+      }
+    });
+  }
+
+  void _confirm() {
+    final selected = _allProducts.where((p) => _selectedIds.contains(p.id)).toList();
+    Navigator.pop(context, selected);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return DraggableScrollableSheet(
       initialChildSize: 0.8,
       minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
+      maxChildSize: 1.0,
+      builder: (_, scrollCtrl) => ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        child: Container(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 48,
-              height: 6,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(3),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 48,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.inventory_2_rounded,
-                    color: Theme.of(context).colorScheme.primary,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.inventory_2_rounded,
+                      color: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    'Select Product',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      'Select Products',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                  if (_selectedIds.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${_selectedIds.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -2390,22 +2406,31 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                       itemCount: _allProducts.length,
                       itemBuilder: (_, i) {
                         final p = _allProducts[i];
+                        final isSelected = _selectedIds.contains(p.id);
                         return Card(
                           elevation: 0,
-                          color: Colors.grey[50],
+                          color: isSelected
+                              ? theme.colorScheme.primary.withOpacity(0.08)
+                              : Colors.grey[50],
                           margin: const EdgeInsets.only(bottom: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: isSelected
+                                ? BorderSide(color: theme.colorScheme.primary, width: 1.5)
+                                : BorderSide.none,
+                          ),
                           child: ListTile(
                             leading: Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primaryContainer,
+                                color: isSelected
+                                    ? theme.colorScheme.primary.withOpacity(0.15)
+                                    : theme.colorScheme.primaryContainer,
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Icon(
                                 Icons.inventory_2_rounded,
-                                color: Theme.of(context).colorScheme.primary,
+                                color: theme.colorScheme.primary,
                                 size: 20,
                               ),
                             ),
@@ -2418,25 +2443,53 @@ class _ProductSearchSheetState extends State<_ProductSearchSheet> {
                             subtitle: Text(
                               '${_currency.format(p.price)}${p.unitType != null ? ' / ${p.unitType}' : ''}',
                             ),
-                            trailing: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.add_rounded,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                            onTap: () => Navigator.pop(context, p),
+                            trailing: isSelected
+                                ? Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                  )
+                                : Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      border: Border.all(color: Colors.grey[300]!, width: 2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const SizedBox(width: 18, height: 18),
+                                  ),
+                            onTap: () => _toggleProduct(p),
                           ),
                         ).animate().fadeIn(delay: (i * 30).ms).slideX(begin: 0.1);
                       },
                     ),
             ),
+            if (_selectedIds.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: _confirm,
+                    icon: const Icon(Icons.check_rounded),
+                    label: Text(
+                      '${_selectedIds.length} Product${_selectedIds.length > 1 ? 's' : ''} Selected',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                  ),
+                ),
+              ),
           ],
+          ),
         ),
       ),
     );

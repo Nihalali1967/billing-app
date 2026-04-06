@@ -43,6 +43,322 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     if (mounted) setState(() { _bill = bill; _isLoading = false; });
   }
 
+  Future<void> _updateCollectedAmount() async {
+    final bill = _bill;
+    if (bill == null) return;
+
+    final collectedCtrl = TextEditingController(
+      text: bill.collectedAmount.toStringAsFixed(2),
+    );
+
+    // Fetch current customer data from server
+    final customerData = await context.read<CustomerProvider>().getCustomer(bill.customerId);
+    if (customerData == null || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Could not fetch customer data'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+      return;
+    }
+
+    final currentCreditBalance = (double.tryParse(customerData['credit_balance']?.toString() ?? '0') ?? 0);
+    final currentExtraAmount = (double.tryParse(customerData['extra_amount']?.toString() ?? '0') ?? 0);
+    final oldCollected = bill.collectedAmount;
+
+    double previewNewCredit = currentCreditBalance;
+    double previewNewExtra = currentExtraAmount;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final newCollected = double.tryParse(collectedCtrl.text) ?? 0;
+          final diff = newCollected - oldCollected;
+
+          // Calculate new credit/extra based on diff
+          double newCreditBalance = currentCreditBalance;
+          double newExtraAmount = currentExtraAmount;
+
+          if (diff > 0) {
+            // Customer paid more → reduce credit first, overflow to extra
+            newCreditBalance -= diff;
+            if (newCreditBalance < 0) {
+              newExtraAmount += newCreditBalance.abs();
+              newCreditBalance = 0;
+            }
+          } else if (diff < 0) {
+            // Customer paid less → reduce extra first, overflow to credit
+            newExtraAmount += diff; // diff is negative
+            if (newExtraAmount < 0) {
+              newCreditBalance += newExtraAmount.abs();
+              newExtraAmount = 0;
+            }
+          }
+
+          previewNewCredit = newCreditBalance;
+          previewNewExtra = newExtraAmount;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.edit_rounded, color: Colors.green),
+                ),
+                const SizedBox(width: 12),
+                const Text('Update Collected'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Bill total info
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Bill Total', style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600)),
+                        Text(_currency.format(bill.total), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Old collected (read-only)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Old Collected', style: TextStyle(color: Colors.orange[800], fontWeight: FontWeight.w600)),
+                        Text(_currency.format(oldCollected), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.orange[800])),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // New collected input
+                  TextField(
+                    controller: collectedCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'New Collected Amount',
+                      prefixIcon: const Icon(Icons.currency_rupee_rounded),
+                      hintText: '0.00',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.green, width: 2),
+                      ),
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  // Difference display
+                  if (diff != 0)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: diff > 0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: diff > 0 ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            diff > 0 ? 'Extra Paid' : 'Less Paid',
+                            style: TextStyle(
+                              color: diff > 0 ? Colors.green[800] : Colors.red[800],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${diff > 0 ? '+' : ''}${_currency.format(diff)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: diff > 0 ? Colors.green[800] : Colors.red[800],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  // Preview: Customer balance changes
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Customer Balance Preview',
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800], fontSize: 13),
+                        ),
+                        const SizedBox(height: 10),
+                        _buildBalanceRow('Credit Balance', currentCreditBalance, newCreditBalance),
+                        const SizedBox(height: 6),
+                        _buildBalanceRow('Extra Amount', currentExtraAmount, newExtraAmount),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                onPressed: (newCollected < 0)
+                    ? null
+                    : () => Navigator.pop(ctx, true),
+                icon: const Icon(Icons.check_rounded, size: 18),
+                label: const Text('Update'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final newCollected = double.tryParse(collectedCtrl.text) ?? 0;
+
+      // 1. Update the bill
+      final billUpdated = await context.read<BillProvider>().updateBill(
+        widget.billId,
+        {
+          'customer_id': bill.customerId,
+          'collected_amount': newCollected,
+        },
+      );
+
+      if (billUpdated && mounted) {
+        // 2. Update customer credit/extra
+        final customerUpdated = await context.read<CustomerProvider>().update(
+          bill.customerId,
+          {
+            'credit_balance': previewNewCredit,
+            'extra_amount': previewNewExtra,
+          },
+        );
+
+        // 3. Reload bill
+        await _loadBill();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    customerUpdated ? Icons.check_circle : Icons.warning,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      customerUpdated
+                          ? 'Collected amount & customer balance updated'
+                          : 'Bill updated but customer balance update failed',
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: customerUpdated ? Colors.green : Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          );
+        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Failed to update collected amount'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+
+    collectedCtrl.dispose();
+  }
+
+  Widget _buildBalanceRow(String label, double oldVal, double newVal) {
+    final changed = oldVal != newVal;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (changed) ...[
+              Text(
+                _currency.format(oldVal),
+                style: const TextStyle(
+                  fontSize: 12,
+                  decoration: TextDecoration.lineThrough,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward, size: 12, color: Colors.blue),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              _currency.format(newVal),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: changed ? Colors.blue[800] : Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Future<void> _deleteBill() async {
     final bill = _bill;
     if (bill == null) return;
@@ -1083,8 +1399,35 @@ bytes += generator.hr();
                             // 1. Total
                             _TotalRow('Total', _currency.format(bill.total), isBold: true, fontSize: 18),
                             const SizedBox(height: 8),
-                            // 2. Collected
-                            _TotalRow('Collected', _currency.format(bill.collectedAmount), color: Colors.green[700], isBold: true),
+                            // 2. Collected with edit icon
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Collected', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[700], fontSize: 14)),
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(_currency.format(bill.collectedAmount), style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green[700], fontSize: 16)),
+                                      const SizedBox(width: 4),
+                                      InkWell(
+                                        onTap: _updateCollectedAmount,
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Icon(Icons.edit_rounded, size: 16, color: Colors.green[700]),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                             // 3. Customer-based calculations from customer table
                             if (bill.customerExtraAmount > 0 || bill.customerCreditBalance > 0) ...[
                               const SizedBox(height: 8),

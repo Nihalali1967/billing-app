@@ -31,9 +31,9 @@ class _CustomerFormScreenState extends State<CustomerFormScreen> {
     final c = widget.customer;
     _nameCtrl = TextEditingController(text: c?.name ?? '');
     _shopNameCtrl = TextEditingController(text: c?.shopName ?? '');
-    _mobileCtrl = TextEditingController(text: c?.mobile ?? '');
+    _mobileCtrl = TextEditingController(text: (c?.mobile != null && c!.mobile != '0' && c!.mobile.isNotEmpty) ? c.mobile : '00');
     _mobileSecondaryCtrl =
-        TextEditingController(text: c?.mobileSecondary ?? '');
+        TextEditingController(text: (c?.mobileSecondary != null && c!.mobileSecondary != '0') ? c.mobileSecondary! : '');
     _locationCtrl = TextEditingController(text: c?.location ?? '');
     _creditAmountCtrl = TextEditingController(text: c?.creditBalance.toString() ?? '0');
     _extraAmountCtrl = TextEditingController(text: c?.extraAmount.toString() ?? '0');

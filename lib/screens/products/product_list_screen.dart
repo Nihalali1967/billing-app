@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../models/product.dart';
 import '../../providers/product_provider.dart';
 import 'product_form_screen.dart';
 
@@ -16,21 +17,44 @@ class ProductListScreen extends StatefulWidget {
 class _ProductListScreenState extends State<ProductListScreen> {
   final _searchController = TextEditingController();
   final _currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
+  List<Product> _allProducts = [];
+  List<Product> _filteredProducts = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => context.read<ProductProvider>().fetch());
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() => _loading = true);
+    final products = await context.read<ProductProvider>().getAllProducts();
+    products.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    setState(() {
+      _allProducts = products;
+      _filteredProducts = products;
+      _loading = false;
+    });
+  }
+
+  void _filterProducts() {
+    final query = _searchController.text.trim().toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredProducts = _allProducts;
+      } else {
+        _filteredProducts = _allProducts.where((p) {
+          return p.name.toLowerCase().contains(query);
+        }).toList();
+      }
+    });
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _search() {
-    context.read<ProductProvider>().fetch(search: _searchController.text.trim());
   }
 
   @override
@@ -87,7 +111,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                               icon: const Icon(Icons.clear_rounded, size: 20),
                               onPressed: () {
                                 _searchController.clear();
-                                _search();
+                                _filterProducts();
                               },
                             )
                           : null,
@@ -99,17 +123,16 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       fillColor: Colors.transparent,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     ),
-                    onChanged: (v) => setState(() {}),
-                    onSubmitted: (_) => _search(),
+                    onChanged: (v) => _filterProducts(),
                   ),
                 ).animate().fadeIn().slideY(begin: -0.2, end: 0),
               ),
 
               // Product List
               Expanded(
-                child: provider.isLoading
+                child: _loading
                     ? const Center(child: CircularProgressIndicator())
-                    : provider.products.isEmpty
+                    : _filteredProducts.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -139,13 +162,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             ),
                           ).animate().fadeIn().scale(delay: 200.ms)
                         : RefreshIndicator(
-                            onRefresh: () => provider.fetch(search: _searchController.text.trim()),
+                            onRefresh: _loadProducts,
                             color: theme.colorScheme.primary,
                             child: ListView.builder(
                               padding: const EdgeInsets.only(bottom: 100),
-                              itemCount: provider.products.length,
+                              itemCount: _filteredProducts.length,
                               itemBuilder: (context, index) {
-                                final p = provider.products[index];
+                                final p = _filteredProducts[index];
                                 return Container(
                                   margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                                   decoration: BoxDecoration(
@@ -170,7 +193,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                             builder: (_) => ProductFormScreen(product: p),
                                           ),
                                         );
-                                        if (result == true) provider.fetch();
+                                        if (result == true) _loadProducts();
                                       },
                                       child: Padding(
                                         padding: const EdgeInsets.all(16),
@@ -293,7 +316,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                       builder: (_) => ProductFormScreen(product: p),
                                                     ),
                                                   );
-                                                  if (result == true) provider.fetch();
+                                                  if (result == true) _loadProducts();
                                                 } else if (val == 'delete') {
                                                   final confirm = await showDialog<bool>(
                                                     context: context,
@@ -315,7 +338,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                                     ),
                                                   );
                                                   if (confirm == true) {
-                                                    await provider.deleteProduct(p.id);
+                                                    final deleted = await provider.deleteProduct(p.id);
+                                                    if (deleted && mounted) {
+                                                      setState(() {
+                                                        _allProducts.removeWhere((item) => item.id == p.id);
+                                                        _filteredProducts.removeWhere((item) => item.id == p.id);
+                                                      });
+                                                    }
                                                   }
                                                 }
                                               },
@@ -330,56 +359,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             ),
                           ),
               ),
-              
-              // Pagination Controls
-              if (provider.lastPage > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 20,
-                        offset: const Offset(0, -5),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left_rounded),
-                          style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surface),
-                          onPressed: provider.currentPage > 1
-                              ? () => provider.fetch(search: _searchController.text.trim(), page: provider.currentPage - 1)
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer.withOpacity(0.5),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'Page ${provider.currentPage} of ${provider.lastPage}',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right_rounded),
-                          style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surface),
-                          onPressed: provider.currentPage < provider.lastPage
-                              ? () => provider.fetch(search: _searchController.text.trim(), page: provider.currentPage + 1)
-                              : null,
-                        ),
-                      ],
-                    ),
-                  ),
-                ).animate().slideY(begin: 1, end: 0),
             ],
           ),
         ],
@@ -390,7 +369,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
             context,
             MaterialPageRoute(builder: (_) => const ProductFormScreen()),
           );
-          if (result == true) provider.fetch();
+          if (result == true) _loadProducts();
         },
         icon: const Icon(Icons.add_rounded),
         label: const Text('New Product', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
