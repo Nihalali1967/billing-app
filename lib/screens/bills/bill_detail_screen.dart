@@ -1458,6 +1458,23 @@ bytes += generator.hr();
                                 ),
                               ),
                             ],
+                            if (bill.previousCredit > 0) ...[
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.indigo.withOpacity(0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.indigo.withOpacity(0.2)),
+                                ),
+                                child: _TotalRow(
+                                  'Old Balance (OB)',
+                                  _currency.format(bill.previousCredit),
+                                  color: Colors.indigo[700],
+                                  isBold: true,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

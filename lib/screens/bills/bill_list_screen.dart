@@ -18,6 +18,9 @@ class _BillListScreenState extends State<BillListScreen> {
   final _searchController = TextEditingController();
   final _currency = NumberFormat.currency(symbol: '₹', decimalDigits: 2);
   DateTimeRange? _dateRange;
+  List<Bill> _allBills = [];
+  List<Bill> _filteredBills = [];
+  bool _loading = true;
 
   Future<void> _showDeleteBillDialog(Bill bill) async {
     // Show customer's current credit/extra amounts from the bill
@@ -235,15 +238,37 @@ class _BillListScreenState extends State<BillListScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => context.read<BillProvider>().fetch());
+    _loadBills();
   }
 
-  void _search() {
-    context.read<BillProvider>().fetch(
-          search: _searchController.text.trim(),
-          dateFrom: _dateRange?.start.toIso8601String().split('T')[0],
-          dateTo: _dateRange?.end.toIso8601String().split('T')[0],
-        );
+  Future<void> _loadBills() async {
+    setState(() => _loading = true);
+    await context.read<BillProvider>().fetch(
+      dateFrom: _dateRange?.start.toIso8601String().split('T')[0],
+      dateTo: _dateRange?.end.toIso8601String().split('T')[0],
+      perPage: 1000,
+    );
+    if (mounted) {
+      setState(() {
+        _allBills = context.read<BillProvider>().bills;
+        _filterBills();
+        _loading = false;
+      });
+    }
+  }
+
+  void _filterBills() {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      _filteredBills = _allBills;
+    } else {
+      _filteredBills = _allBills.where((b) {
+        final billMatch = b.billNumber.toLowerCase().contains(query);
+        final nameMatch = b.customerName?.toLowerCase().contains(query) ?? false;
+        final shopMatch = b.customerShop?.toLowerCase().contains(query) ?? false;
+        return billMatch || nameMatch || shopMatch;
+      }).toList();
+    }
   }
 
   Future<void> _selectDateRange() async {
@@ -266,13 +291,12 @@ class _BillListScreenState extends State<BillListScreen> {
     );
     if (range != null) {
       setState(() => _dateRange = range);
-      _search();
+      _loadBills();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<BillProvider>();
     final theme = Theme.of(context);
 
     return Column(
@@ -285,20 +309,19 @@ class _BillListScreenState extends State<BillListScreen> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search bills...',
+                      hintText: 'Search by name, shop or bill no...',
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _searchController.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear, size: 20),
                               onPressed: () {
                                 _searchController.clear();
-                                _search();
+                                setState(() => _filterBills());
                               },
                             )
                           : null,
                     ),
-                    onChanged: (v) => setState(() {}),
-                    onSubmitted: (_) => _search(),
+                    onChanged: (v) => setState(() => _filterBills()),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -323,7 +346,7 @@ class _BillListScreenState extends State<BillListScreen> {
                     icon: Icon(Icons.clear, color: Colors.grey[500], size: 20),
                     onPressed: () {
                       setState(() => _dateRange = null);
-                      _search();
+                      _loadBills();
                     },
                   ),
               ],
@@ -332,9 +355,9 @@ class _BillListScreenState extends State<BillListScreen> {
           const SizedBox(height: 8),
 
           Expanded(
-            child: provider.isLoading
+            child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : provider.bills.isEmpty
+                : _filteredBills.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -349,16 +372,12 @@ class _BillListScreenState extends State<BillListScreen> {
                         ),
                       ).animate().fadeIn()
                     : RefreshIndicator(
-                        onRefresh: () => provider.fetch(
-                          search: _searchController.text.trim(),
-                          dateFrom: _dateRange?.start.toIso8601String().split('T')[0],
-                          dateTo: _dateRange?.end.toIso8601String().split('T')[0],
-                        ),
+                        onRefresh: _loadBills,
                         child: ListView.builder(
                           padding: const EdgeInsets.only(top: 8, bottom: 80),
-                          itemCount: provider.bills.length,
+                          itemCount: _filteredBills.length,
                           itemBuilder: (context, index) {
-                            final b = provider.bills[index];
+                            final b = _filteredBills[index];
                             final hasCredit = b.creditAmount > 0;
 
                             return Card(
@@ -370,11 +389,7 @@ class _BillListScreenState extends State<BillListScreen> {
                                     context,
                                     MaterialPageRoute(builder: (_) => BillDetailScreen(billId: b.id)),
                                   );
-                                  provider.fetch(
-                                    search: _searchController.text.trim(),
-                                    dateFrom: _dateRange?.start.toIso8601String().split('T')[0],
-                                    dateTo: _dateRange?.end.toIso8601String().split('T')[0],
-                                  );
+                                  _loadBills();
                                 },
                                 onLongPress: () => _showDeleteBillDialog(b),
                                 child: Padding(
@@ -427,6 +442,13 @@ class _BillListScreenState extends State<BillListScreen> {
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
+                                                if (b.customerShop != null && b.customerShop!.isNotEmpty)
+                                                  Text(
+                                                    b.customerShop!,
+                                                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
                                                 if (b.items.isNotEmpty)
                                                   Text(
                                                     '${b.items.length} items',
@@ -463,44 +485,6 @@ class _BillListScreenState extends State<BillListScreen> {
                         ),
                       ),
           ),
-          if (provider.lastPage > 1)
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left),
-                    onPressed: provider.currentPage > 1
-                        ? () => provider.fetch(
-                              search: _searchController.text.trim(),
-                              page: provider.currentPage - 1,
-                              dateFrom: _dateRange?.start.toIso8601String().split('T')[0],
-                              dateTo: _dateRange?.end.toIso8601String().split('T')[0],
-                            )
-                        : null,
-                  ),
-                  Text('Page ${provider.currentPage} of ${provider.lastPage}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right),
-                    onPressed: provider.currentPage < provider.lastPage
-                        ? () => provider.fetch(
-                              search: _searchController.text.trim(),
-                              page: provider.currentPage + 1,
-                              dateFrom: _dateRange?.start.toIso8601String().split('T')[0],
-                              dateTo: _dateRange?.end.toIso8601String().split('T')[0],
-                            )
-                        : null,
-                  ),
-                ],
-              ),
-            ).animate().slideY(begin: 1, end: 0),
         ],
     );
   }

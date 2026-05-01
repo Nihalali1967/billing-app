@@ -27,6 +27,7 @@ class BillProvider with ChangeNotifier {
     int? userId,
     String? search,
     int page = 1,
+    int perPage = 20,
   }) async {
     _isLoading = true;
     _error = null;
@@ -34,7 +35,7 @@ class BillProvider with ChangeNotifier {
     try {
       final params = <String, String>{
         'page': page.toString(),
-        'per_page': '20',
+        'per_page': perPage.toString(),
       };
       if (dateFrom != null) params['date_from'] = dateFrom;
       if (dateTo != null) params['date_to'] = dateTo;

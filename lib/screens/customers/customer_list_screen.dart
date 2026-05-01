@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../models/customer.dart';
 import '../../providers/customer_provider.dart';
 import 'customer_form_screen.dart';
 
@@ -14,11 +15,27 @@ class CustomerListScreen extends StatefulWidget {
 
 class _CustomerListScreenState extends State<CustomerListScreen> {
   final _searchController = TextEditingController();
+  List<Customer> _allCustomers = [];
+  List<Customer> _filteredCustomers = [];
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => context.read<CustomerProvider>().fetch());
+    _loadCustomers();
+  }
+
+  Future<void> _loadCustomers() async {
+    setState(() => _loading = true);
+    final customers = await context.read<CustomerProvider>().fetchAll();
+    customers.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (mounted) {
+      setState(() {
+        _allCustomers = customers;
+        _filteredCustomers = customers;
+        _loading = false;
+      });
+    }
   }
 
   @override
@@ -27,8 +44,30 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
     super.dispose();
   }
 
-  void _search() {
-    context.read<CustomerProvider>().fetch(search: _searchController.text.trim());
+  void _filterCustomers() {
+    final query = _searchController.text.trim().toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredCustomers = _allCustomers;
+      } else {
+        _filteredCustomers = _allCustomers.where((c) {
+          final nameMatch = c.name.toLowerCase().contains(query);
+          final shopMatch = c.shopName?.toLowerCase().contains(query) ?? false;
+          final mobileMatch = c.mobile.contains(query);
+          return nameMatch || shopMatch || mobileMatch;
+        }).toList();
+        // Sort: items starting with query first
+        _filteredCustomers.sort((a, b) {
+          final aStarts = a.name.toLowerCase().startsWith(query) ||
+              (a.shopName?.toLowerCase().startsWith(query) ?? false);
+          final bStarts = b.name.toLowerCase().startsWith(query) ||
+              (b.shopName?.toLowerCase().startsWith(query) ?? false);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        });
+      }
+    });
   }
 
   @override
@@ -77,7 +116,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search customers...',
+                      hintText: 'Search by name or shop...',
                       hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
                       prefixIcon: Icon(Icons.search_rounded, color: theme.colorScheme.primary),
                       suffixIcon: _searchController.text.isNotEmpty
@@ -85,7 +124,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                               icon: const Icon(Icons.clear_rounded, size: 20),
                               onPressed: () {
                                 _searchController.clear();
-                                _search();
+                                _filterCustomers();
                               },
                             )
                           : null,
@@ -97,16 +136,15 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                       fillColor: Colors.transparent,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     ),
-                    onChanged: (v) => setState(() {}),
-                    onSubmitted: (_) => _search(),
+                    onChanged: (v) => _filterCustomers(),
                   ),
                 ).animate().fadeIn().slideY(begin: -0.2, end: 0),
               ),
 
               Expanded(
-                child: provider.isLoading
+                child: _loading
                     ? const Center(child: CircularProgressIndicator())
-                    : provider.customers.isEmpty
+                    : _filteredCustomers.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -136,13 +174,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                             ),
                           ).animate().fadeIn().scale(delay: 200.ms)
                         : RefreshIndicator(
-                            onRefresh: () => provider.fetch(search: _searchController.text.trim()),
+                            onRefresh: _loadCustomers,
                             color: theme.colorScheme.primary,
                             child: ListView.builder(
                               padding: const EdgeInsets.only(bottom: 100),
-                              itemCount: provider.customers.length,
+                              itemCount: _filteredCustomers.length,
                               itemBuilder: (context, index) {
-                                final c = provider.customers[index];
+                                final c = _filteredCustomers[index];
                                 return Container(
                                   margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                                   decoration: BoxDecoration(
@@ -168,7 +206,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                           ),
                                         );
                                         if (result == true) {
-                                          provider.fetch(search: _searchController.text.trim());
+                                          _loadCustomers();
                                         }
                                       },
                                       child: Padding(
@@ -276,7 +314,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                                       builder: (_) => CustomerFormScreen(customer: c),
                                                     ),
                                                   );
-                                                  if (result == true) provider.fetch();
+                                                  if (result == true) _loadCustomers();
                                                 } else if (val == 'delete') {
                                                   final confirm = await showDialog<bool>(
                                                     context: context,
@@ -298,7 +336,13 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
                                                     ),
                                                   );
                                                   if (confirm == true) {
-                                                    await provider.deleteCustomer(c.id);
+                                                    final deleted = await provider.deleteCustomer(c.id);
+                                                    if (deleted && mounted) {
+                                                      setState(() {
+                                                        _allCustomers.removeWhere((item) => item.id == c.id);
+                                                        _filteredCustomers.removeWhere((item) => item.id == c.id);
+                                                      });
+                                                    }
                                                   }
                                                 }
                                               },
@@ -324,7 +368,7 @@ class _CustomerListScreenState extends State<CustomerListScreen> {
             context,
             MaterialPageRoute(builder: (_) => const CustomerFormScreen()),
           );
-          if (result == true) provider.fetch();
+          if (result == true) _loadCustomers();
         },
         icon: const Icon(Icons.person_add_rounded),
         label: const Text('New Customer', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
