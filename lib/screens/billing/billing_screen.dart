@@ -138,7 +138,11 @@ class _BillingScreenState extends State<BillingScreen> {
 
   void _setCollected() {
     final billing = context.read<BillingProvider>();
-    final ctrl = TextEditingController(text: billing.total.toStringAsFixed(2));
+    final currentVal = billing.collectedAmount > 0 ? billing.collectedAmount : billing.total;
+    final displayText = currentVal == currentVal.truncateToDouble()
+        ? currentVal.toInt().toString()
+        : currentVal.toString();
+    final ctrl = TextEditingController(text: displayText);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1105,12 +1109,12 @@ class _BillingScreenState extends State<BillingScreen> {
 
     // 1. TOTAL first
     bytes += generator.row([
-      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles()),
       PosColumn(text: '', width: 2),
       PosColumn(
         text: formatPrintCurrency(total),
         width: 4,
-        styles: const PosStyles(bold: true, align: PosAlign.right),
+        styles: const PosStyles( align: PosAlign.right),
       ),
     ]);
 
@@ -1122,13 +1126,13 @@ class _BillingScreenState extends State<BillingScreen> {
         PosColumn(
           text: 'Collected',
           width: 6,
-          styles: const PosStyles(bold: true),
+          styles: const PosStyles(),
         ),
         PosColumn(text: '', width: 2),
         PosColumn(
           text: formatPrintCurrency(collectedAmount),
           width: 4,
-          styles: const PosStyles(bold: true, align: PosAlign.right),
+          styles: const PosStyles( align: PosAlign.right),
         ),
       ]);
     }
@@ -1141,13 +1145,13 @@ class _BillingScreenState extends State<BillingScreen> {
           PosColumn(
             text: 'Old Credit Bal:',
             width: 6,
-            styles: const PosStyles(bold: true),
+            styles: const PosStyles(),
           ),
           PosColumn(text: '', width: 2),
           PosColumn(
             text: formatPrintCurrency(customerCreditBalance),
             width: 4,
-            styles: const PosStyles(bold: true, align: PosAlign.right),
+            styles: const PosStyles( align: PosAlign.right),
           ),
         ]);
         
@@ -1157,13 +1161,13 @@ class _BillingScreenState extends State<BillingScreen> {
           PosColumn(
             text: 'Old Extra Amt:',
             width: 6,
-            styles: const PosStyles(bold: true),
+            styles: const PosStyles(),
           ),
           PosColumn(text: '', width: 2),
           PosColumn(
             text: formatPrintCurrency(customerExtraAmount),
             width: 4,
-            styles: const PosStyles(bold: true, align: PosAlign.right),
+            styles: const PosStyles( align: PosAlign.right),
           ),
         ]);
       }
@@ -1180,21 +1184,21 @@ class _BillingScreenState extends State<BillingScreen> {
 
         if (netBalance > 0) {
           bytes += generator.row([
-            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles()),
             PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(netBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            PosColumn(text: formatPrintCurrency(netBalance), width: 4, styles: const PosStyles( align: PosAlign.right)),
           ]);
         } else if (netBalance == 0) {
           bytes += generator.row([
-            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles()),
             PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles( align: PosAlign.right)),
           ]);
         } else {
           bytes += generator.row([
-            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles()),
             PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(netBalance.abs()), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            PosColumn(text: formatPrintCurrency(netBalance.abs()), width: 4, styles: const PosStyles( align: PosAlign.right)),
           ]);
         }
       } else if (customerExtraAmount > 0) {
@@ -1203,21 +1207,21 @@ class _BillingScreenState extends State<BillingScreen> {
 
         if (netBalance > 0) {
           bytes += generator.row([
-            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles()),
             PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(netBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            PosColumn(text: formatPrintCurrency(netBalance), width: 4, styles: const PosStyles( align: PosAlign.right)),
           ]);
         } else if (netBalance == 0) {
           bytes += generator.row([
-            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles()),
             PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            PosColumn(text: formatPrintCurrency(0), width: 4, styles: const PosStyles(align: PosAlign.right)),
           ]);
         } else {
           bytes += generator.row([
-            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles(bold: true)),
+            PosColumn(text: 'Total Credit', width: 6, styles: const PosStyles()),
             PosColumn(text: '', width: 2),
-            PosColumn(text: formatPrintCurrency(netBalance.abs()), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+            PosColumn(text: formatPrintCurrency(netBalance.abs()), width: 4, styles: const PosStyles(align: PosAlign.right)),
           ]);
         }
       }
