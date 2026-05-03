@@ -7,11 +7,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import '../../models/bill.dart';
-import '../../models/product.dart';
 import '../../providers/bill_provider.dart';
-import '../../providers/billing_provider.dart';
 import '../../providers/customer_provider.dart';
-import '../home_screen.dart';
+import 'bill_edit_screen.dart';
 
 class BillDetailScreen extends StatefulWidget {
   final int billId;
@@ -372,88 +370,15 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
   }
 
   Future<void> _editBill() async {
-    final bill = _bill;
-    if (bill == null) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.edit_rounded, color: Colors.blue),
-            ),
-            const SizedBox(width: 12),
-            const Text('Edit Bill'),
-          ],
-        ),
-        content: const Text(
-          'This will delete the current bill and restore it to the billing screen for editing. Continue?',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.edit_rounded, size: 18),
-            label: const Text('Edit'),
-          ),
-        ],
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BillEditScreen(billId: widget.billId),
       ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    // Delete the original bill first
-    final deleted = await context.read<BillProvider>().deleteBill(widget.billId);
-    if (!deleted || !mounted) return;
-
-    // Fetch fresh customer data after deletion
-    // (server already reverses the bill's credit/extra effect on deletion)
-    double freshCredit = 0;
-    double freshExtra = 0;
-    final customerData = await context.read<CustomerProvider>().getCustomer(bill.customerId);
-    if (customerData != null) {
-      final cust = customerData['customer'] ?? customerData;
-      freshCredit = double.tryParse(cust['credit_balance']?.toString() ?? '0') ?? 0;
-      freshExtra = double.tryParse(cust['extra_amount']?.toString() ?? '0') ?? 0;
-    }
-
-    if (!mounted) return;
-
-    // Convert bill items to BillingItems
-    final billingItems = bill.items.map((item) => BillingItem(
-      product: Product(
-        id: item.productId,
-        name: item.productName ?? '',
-        price: item.unitPrice,
-        unitType: item.unitType,
-      ),
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      customPrice: item.customPrice,
-      isCustomPrice: item.isCustomPrice,
-    )).toList();
-
-    // Load bill data into BillingProvider with fresh customer balances
-    context.read<BillingProvider>().loadFromBill(
-      customerId: bill.customerId,
-      customerName: bill.customerName ?? '',
-      items: billingItems,
-      discount: bill.discount,
-      collectedAmount: bill.collectedAmount,
-      notes: bill.notes ?? '',
-      creditBalance: freshCredit,
-      extraAmount: freshExtra,
-    );
-
-    // Navigate to HomeScreen with Billing tab (index 1)
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 1)),
-      (route) => false,
-    );
+    ).then((updated) {
+      if (updated == true && mounted) {
+        _loadBill();
+      }
+    });
   }
 
   Future<void> _deleteBill() async {
@@ -503,7 +428,6 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(16),
@@ -554,7 +478,6 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-             
             ],
           ),
         ),
@@ -1461,13 +1384,13 @@ bytes += generator.hr();
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(item.productName ?? 'Product', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                        if (item.isCustomPrice)
-                                          Container(
-                                            margin: const EdgeInsets.only(top: 4),
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
-                                            child: const Text('Custom Price', style: TextStyle(color: Colors.orange, fontSize: 9, fontWeight: FontWeight.bold)),
-                                          ),
+                                        // if (item.isCustomPrice)
+                                        //   Container(
+                                        //     margin: const EdgeInsets.only(top: 4),
+                                        //     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        //     decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                                        //     child: const Text('Custom Price', style: TextStyle(color: Colors.orange, fontSize: 9, fontWeight: FontWeight.bold)),
+                                        //   ),
                                       ],
                                     ),
                                   ),

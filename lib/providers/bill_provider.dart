@@ -71,6 +71,15 @@ class BillProvider with ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>?> getBillForEdit(int id) async {
+    try {
+      final response = await ApiService.get('/bills/$id/edit');
+      return response['data'];
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<Map<String, dynamic>?> getPrintData(int id) async {
     try {
       final response = await ApiService.get('/bills/$id/print');
