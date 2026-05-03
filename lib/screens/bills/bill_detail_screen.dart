@@ -7,8 +7,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import '../../models/bill.dart';
+import '../../models/product.dart';
 import '../../providers/bill_provider.dart';
+import '../../providers/billing_provider.dart';
 import '../../providers/customer_provider.dart';
+import '../home_screen.dart';
 
 class BillDetailScreen extends StatefulWidget {
   final int billId;
@@ -47,9 +50,15 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     final bill = _bill;
     if (bill == null) return;
 
-    final collectedCtrl = TextEditingController(
-      text: bill.collectedAmount.toStringAsFixed(2),
-    );
+    final collectedText = bill.collectedAmount == bill.collectedAmount.truncateToDouble()
+        ? bill.collectedAmount.toInt().toString()
+        : bill.collectedAmount.toString();
+    final collectedCtrl = TextEditingController(text: collectedText);
+    final focusNode = FocusNode();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      focusNode.requestFocus();
+      collectedCtrl.selection = TextSelection(baseOffset: 0, extentOffset: collectedCtrl.text.length);
+    });
 
     // Fetch current customer data from server
     final customerData = await context.read<CustomerProvider>().getCustomer(bill.customerId);
@@ -158,10 +167,12 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
                   // New collected input
                   TextField(
                     controller: collectedCtrl,
+                    focusNode: focusNode,
+                    autofocus: true,
                     decoration: InputDecoration(
                       labelText: 'New Collected Amount',
                       prefixIcon: const Icon(Icons.currency_rupee_rounded),
-                      hintText: '0.00',
+                      hintText: '0',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -321,6 +332,7 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
     }
 
     collectedCtrl.dispose();
+    focusNode.dispose();
   }
 
   Widget _buildBalanceRow(String label, double oldVal, double newVal) {
@@ -356,6 +368,91 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  Future<void> _editBill() async {
+    final bill = _bill;
+    if (bill == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              child: const Icon(Icons.edit_rounded, color: Colors.blue),
+            ),
+            const SizedBox(width: 12),
+            const Text('Edit Bill'),
+          ],
+        ),
+        content: const Text(
+          'This will delete the current bill and restore it to the billing screen for editing. Continue?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.edit_rounded, size: 18),
+            label: const Text('Edit'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    // Delete the original bill first
+    final deleted = await context.read<BillProvider>().deleteBill(widget.billId);
+    if (!deleted || !mounted) return;
+
+    // Fetch fresh customer data after deletion
+    // (server already reverses the bill's credit/extra effect on deletion)
+    double freshCredit = 0;
+    double freshExtra = 0;
+    final customerData = await context.read<CustomerProvider>().getCustomer(bill.customerId);
+    if (customerData != null) {
+      final cust = customerData['customer'] ?? customerData;
+      freshCredit = double.tryParse(cust['credit_balance']?.toString() ?? '0') ?? 0;
+      freshExtra = double.tryParse(cust['extra_amount']?.toString() ?? '0') ?? 0;
+    }
+
+    if (!mounted) return;
+
+    // Convert bill items to BillingItems
+    final billingItems = bill.items.map((item) => BillingItem(
+      product: Product(
+        id: item.productId,
+        name: item.productName ?? '',
+        price: item.unitPrice,
+        unitType: item.unitType,
+      ),
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      customPrice: item.customPrice,
+      isCustomPrice: item.isCustomPrice,
+    )).toList();
+
+    // Load bill data into BillingProvider with fresh customer balances
+    context.read<BillingProvider>().loadFromBill(
+      customerId: bill.customerId,
+      customerName: bill.customerName ?? '',
+      items: billingItems,
+      discount: bill.discount,
+      collectedAmount: bill.collectedAmount,
+      notes: bill.notes ?? '',
+      creditBalance: freshCredit,
+      extraAmount: freshExtra,
+    );
+
+    // Navigate to HomeScreen with Billing tab (index 1)
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeScreen(initialTab: 1)),
+      (route) => false,
     );
   }
 
@@ -635,6 +732,11 @@ class _BillDetailScreenState extends State<BillDetailScreen> {
 
     // 2. Collected
     receipt.writeln('${'Collected'.padRight(30)} ${_currency.format(collectedAmount).padLeft(10)}');
+
+    // 2.5 Old Balance (OB) from bill
+    if (_bill!.previousCredit > 0) {
+      receipt.writeln('${'Old Balance (OB)'.padRight(30)} ${_currency.format(_bill!.previousCredit).padLeft(10)}');
+    }
 
     // 3. Customer-based calculations from customer table
     if (customerExtraAmount > 0 || customerCreditBalance > 0) {
@@ -1041,34 +1143,43 @@ bytes += generator.hr();
     
     // 1. TOTAL first
     bytes += generator.row([
-      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'TOTAL', width: 6, styles: const PosStyles()),
       PosColumn(text: '', width: 2),
-      PosColumn(text: formatPrintCurrency(total), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(total), width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
 
     // 2. Collected
     bytes += generator.hr(ch: '-');
     bytes += generator.row([
-      PosColumn(text: 'Collected', width: 6, styles: const PosStyles(bold: true)),
+      PosColumn(text: 'Collected', width: 6, styles: const PosStyles()),
       PosColumn(text: '', width: 2),
-      PosColumn(text: formatPrintCurrency(collectedAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+      PosColumn(text: formatPrintCurrency(collectedAmount), width: 4, styles: const PosStyles(align: PosAlign.right)),
     ]);
+
+    // 2.5 Old Balance (OB) from bill
+    if (_bill!.previousCredit > 0) {
+      bytes += generator.row([
+        PosColumn(text: 'Old Balance (OB)', width: 6, styles: const PosStyles()),
+        PosColumn(text: '', width: 2),
+        PosColumn(text: formatPrintCurrency(_bill!.previousCredit), width: 4, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+    }
 
     // 3. Customer-based calculations from customer table
     if (customerExtraAmount > 0 || customerCreditBalance > 0) {
       bytes += generator.hr(ch: '-');
       if (customerExtraAmount > 0) {
         bytes += generator.row([
-          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'Total Extra Amt', width: 6, styles: const PosStyles()),
           PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          PosColumn(text: formatPrintCurrency(customerExtraAmount), width: 4, styles: const PosStyles(align: PosAlign.right)),
         ]);
       }
       if (customerCreditBalance > 0) {
         bytes += generator.row([
-          PosColumn(text: 'Credit Balance', width: 6, styles: const PosStyles(bold: true)),
+          PosColumn(text: 'Credit Balance', width: 6, styles: const PosStyles()),
           PosColumn(text: '', width: 2),
-          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(bold: true, align: PosAlign.right)),
+          PosColumn(text: formatPrintCurrency(customerCreditBalance), width: 4, styles: const PosStyles(align: PosAlign.right)),
         ]);
       }
     }
@@ -1137,11 +1248,16 @@ bytes += generator.hr();
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             itemBuilder: (_) => [
               const PopupMenuItem(
+                value: 'edit',
+                child: Row(children: [Icon(Icons.edit_rounded, color: Colors.blue, size: 20), SizedBox(width: 12), Text('Edit Bill', style: TextStyle(color: Colors.blue))]),
+              ),
+              const PopupMenuItem(
                 value: 'delete',
                 child: Row(children: [Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20), SizedBox(width: 12), Text('Delete Bill', style: TextStyle(color: Colors.red))]),
               ),
             ],
             onSelected: (val) {
+              if (val == 'edit') _editBill();
               if (val == 'delete') _deleteBill();
             },
           ),
@@ -1741,6 +1857,11 @@ bytes += generator.hr();
                           const SizedBox(height: 4),
                           // 2. Collected
                           _PrintTotalRow('Collected', (printData['collected_amount'] ?? 0).toDouble()),
+                          // 2.5 Old Balance (OB) from bill
+                          if (_bill!.previousCredit > 0) ...[
+                            const SizedBox(height: 4),
+                            _PrintTotalRow('Old Balance (OB)', _bill!.previousCredit, isBold: true),
+                          ],
                           // 3. Customer-based calculations from customer table
                           if (customerExtraAmount > 0 || customerCreditBalance > 0) ...[
                             const Padding(

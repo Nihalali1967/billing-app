@@ -6,14 +6,15 @@ import 'bills/bill_list_screen.dart';
 import 'more_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialTab;
+  const HomeScreen({super.key, this.initialTab = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex = widget.initialTab;
 
   final List<Widget> _screens = [
     const DashboardScreen(),

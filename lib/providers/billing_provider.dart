@@ -129,6 +129,30 @@ class BillingProvider with ChangeNotifier {
     _notes = val;
   }
 
+  void loadFromBill({
+    required int customerId,
+    required String customerName,
+    required List<BillingItem> items,
+    double discount = 0,
+    double collectedAmount = 0,
+    String notes = '',
+    double creditBalance = 0,
+    double extraAmount = 0,
+  }) {
+    _customerId = customerId;
+    _customerName = customerName;
+    _items = items;
+    _discount = discount;
+    _collectedAmount = collectedAmount;
+    _notes = notes;
+    _customerCreditBalance = creditBalance;
+    _customerExtraAmount = extraAmount;
+    _error = null;
+    _previewData = null;
+    _previewToken = null;
+    notifyListeners();
+  }
+
   void clearBill() {
     _items = [];
     _customerId = null;
